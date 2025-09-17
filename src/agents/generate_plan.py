@@ -17,7 +17,7 @@ def generate_project_plan(finalized_idea: str) -> ProjectPlan:
         ("system", """
         You are an expert project manager AI. Your job is to take a user's idea
         and create a clear, structured project plan with multiple initial tasks
-        that can be used on a Kanban board. These can be 5-10 or even more steps if needed accordingly.
+        that can be used on a Kanban board. These can be 5-15 or even more steps if needed accordingly.
 
         IMPORTANT: For every task you create, the 'status' field MUST be
         the exact string 'To-Do'.
