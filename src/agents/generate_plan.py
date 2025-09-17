@@ -11,7 +11,7 @@ def generate_project_plan(finalized_idea: str) -> ProjectPlan:
     This is the core agent logic. It takes a user's idea and returns a structured Pydantic ProjectPlan object.
     """
 
-    structured_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GEMINI_KEY")).with_structured_output(ProjectPlan)
+    structured_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=os.getenv("GEMINI_KEY")).with_structured_output(ProjectPlan)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", """
