@@ -46,7 +46,7 @@ graph TD
     E --> G[User Response]
     G --> B
 ```
-
+```mermaid
 graph TB
     User[👤 User] --> L1[Level 1: Strategic Career Agent<br/>🎯 Main Orchestrator]
     
@@ -143,6 +143,7 @@ graph TB
     class PlannerAgent,ResearchAgent,GitHubAgent,ProgressReporter agent
     class PlanTool,FileTool,WebSearch,PDFUpload,RepoParser,FeatureTracker,TaskCrossCheck,StatusUpdater tool
     class JSONPlan,ResearchData,GitHubStatus,VectorStore,LitSurvey data
+```
 
 ### Core Components
 
