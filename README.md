@@ -47,6 +47,103 @@ graph TD
     G --> B
 ```
 
+graph TB
+    User[👤 User] --> L1[Level 1: Strategic Career Agent<br/>🎯 Main Orchestrator]
+    
+    L1 --> L2A[Level 2A: Project Subsystem]
+    L1 --> L2B[Level 2B: Project Subsystem]  
+    L1 --> L2C[Level 2C: Project Subsystem]
+    L1 --> L2D[Level 2D: ...]
+    
+    subgraph "Level 2: Tactical Milestone Agent Subsystem"
+        direction TB
+        
+        subgraph "Project Input"
+            UserQuery[📝 User Project Query<br/>'I want to build a weather app']
+        end
+        
+        UserQuery --> PlannerAgent
+        
+        subgraph "Core Agents"
+            PlannerAgent[🧠 General Chat Agent<br/>Gemini API]
+            ResearchAgent[🔬 Research Agent<br/>Web Search + Vector DB]
+            GitHubAgent[📊 GitHub Tracker Agent<br/>Repo Parser]
+        end
+        
+        subgraph "Planner Agent Tools"
+            PlanTool[🛠️ Plan Generator Tool<br/>JSON Format]
+            FileTool[📄 JSON File Creator Tool]
+            PlannerAgent --> PlanTool
+            PlannerAgent --> FileTool
+        end
+        
+        subgraph "Research Agent Features"
+            WebSearch[🌐 Web Paper Search]
+            PDFUpload[📑 PDF Upload & Processing]
+            VectorStore[🗄️ Vector Database Storage]
+            LitSurvey[📚 Literature Survey Generation]
+            
+            ResearchAgent --> WebSearch
+            ResearchAgent --> PDFUpload
+            WebSearch --> VectorStore
+            PDFUpload --> VectorStore
+            VectorStore --> LitSurvey
+        end
+        
+        subgraph "GitHub Agent Features"
+            RepoParser[⚙️ Repository Content Parser]
+            FeatureTracker[✅ Feature Implementation Tracker]
+            TaskCrossCheck[🔄 Task List Cross-Reference]
+            StatusUpdater[📋 Completion Status Updater]
+            
+            GitHubAgent --> RepoParser
+            RepoParser --> FeatureTracker
+            FeatureTracker --> TaskCrossCheck
+            TaskCrossCheck --> StatusUpdater
+        end
+        
+        subgraph "Data Flow"
+            JSONPlan[📋 Generated Project Plan<br/>JSON Format]
+            ResearchData[📄 Research Papers & Analysis]
+            GitHubStatus[✔️ Implementation Status Report]
+            
+            PlanTool --> JSONPlan
+            FileTool --> JSONPlan
+            LitSurvey --> ResearchData
+            StatusUpdater --> GitHubStatus
+        end
+        
+        subgraph "Integration Layer"
+            JSONPlan --> TaskCrossCheck
+            ResearchData --> PlannerAgent
+            GitHubStatus --> ProgressReporter
+        end
+        
+        ProgressReporter[📊 Progress Reporter<br/>Aggregated Updates]
+    end
+    
+    ProgressReporter --> L1
+    
+    subgraph "Level 1 Features"
+        L1 --> CareerDashboard[📈 Career Dashboard<br/>Overall Progress Tracking]
+        L1 --> MilestoneManager[🎯 Milestone Management<br/>Project Orchestration] 
+        L1 --> GoalTracker[🏆 Goal Achievement Tracker]
+    end
+    
+    CareerDashboard --> User
+    
+    classDef level1 fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000
+    classDef level2 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+    classDef agent fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+    classDef tool fill:#e8f5e8,stroke:#2e7d32,stroke-width:1px,color:#000
+    classDef data fill:#fff8e1,stroke:#f57f17,stroke-width:1px,color:#000
+    
+    class L1 level1
+    class L2A,L2B,L2C,L2D level2
+    class PlannerAgent,ResearchAgent,GitHubAgent,ProgressReporter agent
+    class PlanTool,FileTool,WebSearch,PDFUpload,RepoParser,FeatureTracker,TaskCrossCheck,StatusUpdater tool
+    class JSONPlan,ResearchData,GitHubStatus,VectorStore,LitSurvey data
+
 ### Core Components
 
 #### 🧠 **Agent Node** - The Decision Maker
