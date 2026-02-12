@@ -1,0 +1,227 @@
+@import "./theme.css";
+
+/* Main chat container */
+.chat-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: var(--chat-bg);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  height: 80vh;
+  overflow: hidden;
+}
+
+/* Chat header */
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Nav links in header */
+.chat-header nav {
+  display: flex;
+  gap: 16px;
+}
+.chat-header nav a {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+.chat-header nav a:hover {
+  color: var(--link-hover-color);
+}
+
+/* Chat window */
+.chat-window {
+  flex-grow: 1;
+  padding: 16px;
+  background-color: var(--chat-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  scroll-behavior: smooth;
+  border-radius: 0 0 0 0;
+}
+
+/* Message bubbles */
+.chat-message {
+  padding: 10px 14px;
+  border-radius: 16px;
+  max-width: 80%;
+  word-wrap: break-word;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.chat-message.user {
+  background-color: var(--user-msg-bg);
+  color: #fff;
+  align-self: flex-end;
+}
+.chat-message.ai {
+  background-color: var(--ai-msg-bg);
+  color: var(--text-color);
+  align-self: flex-start;
+  border: 1px solid var(--border-color);
+}
+
+/* Typing indicator */
+.typing-dots span {
+  height: 8px;
+  width: 8px;
+  background-color: var(--button-bg);
+  border-radius: 50%;
+  display: inline-block;
+  margin: 0 3px;
+  opacity: 0.3;
+  animation: fadeDots 1.4s infinite ease-in-out;
+}
+@keyframes fadeDots {
+  0%,100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* Input form */
+.input-form {
+  display: flex;
+  padding: 12px 16px;
+  gap: 0;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--chat-bg);
+}
+.input-form input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 8px 0 0 8px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  outline: none;
+  font-size: 1rem;
+}
+.input-form button {
+  padding: 12px 18px;
+  background-color: var(--button-bg);
+  color: #fff;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 1rem;
+}
+.input-form button:hover {
+  background-color: var(--button-hover-bg);
+}
+
+/* Boards */
+.kanban-board {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  padding: 20px;
+  gap: 20px;
+}
+.kanban-column {
+  flex: 1 1 250px;
+  background: var(--ai-msg-bg);
+  border-radius: 10px;
+  padding: 10px;
+}
+.kanban-task {
+  background: var(--chat-bg);
+  margin: 5px 0;
+  padding: 8px;
+  border-radius: 5px;
+}
+
+/* Gantt chart */
+.gantt-chart {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  margin: 20px;
+}
+.gantt-header { display: contents; }
+.gantt-day {
+  text-align: center;
+  font-weight: bold;
+  background: var(--border-color);
+  padding: 5px;
+}
+.gantt-row {
+  display: contents;
+  align-items: center;
+}
+.gantt-task-name {
+  grid-column: 1 / span 2;
+  text-align: left;
+}
+.gantt-bar {
+  background: #4caf50;
+  height: 20px;
+  border-radius: 4px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .chat-container { height: 70vh; }
+  .chat-window { min-height: 250px; }
+  .input-form input, .input-form button { font-size: 0.9rem; padding: 10px; }
+  .kanban-column { flex: 1 1 45%; }
+}
+@media (max-width: 480px) {
+  .chat-container { width: 95%; margin: 20px auto; }
+  .kanban-column { flex: 1 1 100%; }
+  .gantt-chart { grid-template-columns: repeat(5, 1fr); }
+}
+
+/* Add this to App.css or a dedicated CSS file */
+
+.chat-container {
+  width: 600px;
+  margin: 30px auto;
+  background-color: var(--chat-bg, #f8f9fa);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  height: 600px; /* FIXED height for scroll */
+}
+
+.chat-box {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto; /* Enable vertical scroll */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.chat-input button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background-color: #0078d4;
+  color: white;
+  cursor: pointer;
+}

@@ -1,0 +1,38 @@
+/* /src/theme.css */
+:root {
+  --bg-color: #121212;
+  --text-color: #f8f9fa;
+  --chat-bg: #1e1e1e;
+  --user-msg-bg: #7330f8;
+  --ai-msg-bg: #2a2a2a;
+  --border-color: #3a3a3a;
+  --button-bg: #7330f8;
+  --button-hover-bg: #5e24d6;
+  --input-bg: #2a2a2a;
+  --input-border: #444;
+}
+
+.light-mode {
+  --bg-color: #f8f9fa;
+  --text-color: #212529;
+  --chat-bg: #ffffff;
+  --user-msg-bg: #7330f8;
+  --ai-msg-bg: #f1f0f0;
+  --border-color: #dee2e6;
+  --button-bg: #7330f8;
+  --button-hover-bg: #5e24d6;
+  --input-bg: #ffffff;
+  --input-border: #ccc;
+}
+
+/* Boards */
+.kanban-board { display: flex; justify-content: space-around; padding: 20px; }
+.kanban-column { width: 30%; background: #2a2a2a; border-radius: 10px; padding: 10px; }
+.kanban-task { background: #444; margin: 5px; padding: 8px; border-radius: 5px; }
+
+.gantt-chart { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; margin: 20px; }
+.gantt-header { display: contents; }
+.gantt-day { text-align: center; font-weight: bold; background: #333; padding: 5px; }
+.gantt-row { display: contents; align-items: center; }
+.gantt-task-name { grid-column: 1 / span 2; text-align: left; }
+.gantt-bar { background: #4caf50; height: 20px; border-radius: 4px; }
