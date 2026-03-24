@@ -18,3 +18,5 @@ plan_json/
 .idea/
 
 *.pdf
+
+vector_memory/

@@ -8,6 +8,44 @@ from src.agentic_orchestrator import AgenticOrchestrator
 import time
 import io
 import sys
+import json
+
+def render_response(response):
+    """
+    Smart renderer:
+    - If JSON → format nicely
+    - Else → show as markdown
+    """
+    try:
+        data = json.loads(response)
+
+        # Check if it's a project plan
+        if "title" in data and "tasks" in data:
+
+            st.subheader(f"📌 {data.get('title')}")
+            st.write(data.get("description"))
+
+            st.divider()
+            st.subheader("📋 Tasks")
+
+            for task in data.get("tasks", []):
+                st.markdown(f"**{task['id']}. {task['title']}**")
+                st.caption(task['description'])
+
+            return
+
+    except:
+        pass
+
+    # fallback (normal response with structure)
+    if "## 🔬" in response:
+        sections = response.split("##")
+
+        for section in sections:
+            if section.strip():
+                st.markdown("## " + section.strip())
+    else:
+        st.markdown(response)
 
 load_dotenv()
 
@@ -207,7 +245,7 @@ with tab1:
                 st.write(msg['content'])
         else:
             with st.chat_message("assistant"):
-                st.markdown(msg['content'])
+                render_response(msg['content'])
     
     # Process pending message from buttons FIRST (before input)
     if st.session_state.get('pending_message'):
@@ -228,7 +266,7 @@ with tab1:
         with st.chat_message("assistant"):
             with st.spinner("🤖 Agent is thinking..."):
                 response = process_user_message(user_message)
-                st.markdown(response)
+                render_response(response)
         
         # Add response to history
         st.session_state.chat_history.append({
@@ -256,7 +294,10 @@ with tab1:
         with st.chat_message("assistant"):
             with st.spinner("🤖 Agent is thinking..."):
                 response = process_user_message(user_input)
-                st.markdown(response)
+                render_response(response)
+                st.session_state.app.current_project = st.session_state.app.db.get_project(
+                    st.session_state.current_project_id
+                )
         
         # Add response to history
         st.session_state.chat_history.append({
@@ -376,7 +417,7 @@ with tab3 :
                         st.success("Search complete! Results shown below.")
                         
                         with st.expander("📄 View Search Results", expanded=True):
-                            st.markdown(response)
+                            st.markdown(response, unsafe_allow_html=True)
                     else:
                         st.warning("Please enter search keywords")
                 
@@ -472,7 +513,7 @@ if st.session_state.app.current_project:
         
         if submitted and github_url:
             with st.spinner("Linking repository..."):
-                response = process_user_message(github_url)
+                response = process_user_message(f"Analyze this GitHub repository: {github_url}")
                 st.session_state.chat_history.append({
                     'role': 'assistant',
                     'content': response

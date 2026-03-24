@@ -1,380 +1,441 @@
-# -*- coding: utf-8 -*-
+# src/agentic_orchestrator.py
 
-
-"""
-True agentic orchestrator using LangGraph
-Agent autonomously decides which tools to use
-"""
 from typing import TypedDict, Annotated, Sequence, Literal
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
-import os
+from langgraph.graph.message import add_messages
+from src.tools.github_analyzer import run_github_analysis
+
 import json
+import re
+import os
 import uuid
-from datetime import datetime
+from dotenv import load_dotenv
 
+load_dotenv()
 
-from src.database.simple_db import SimpleDB
+from src.database.mysql_db import MySQLDB
 from src.memory.demo_memory import DemoMemory
 
-print(" CLI Started 2")
-from src.tools.agent_tools import generate_project_plan_tool
-
-from src.tools.agent_tools import link_github_repository_tool
-from src.tools.agent_tools import get_project_status_tool
-from src.tools.agent_tools import search_similar_projects_tool
-from src.tools.github_analyzer import (
-    analyze_github_code_comprehensively_tool,
-    match_code_to_tasks_semantic_tool
-)
-from src.agents.research_agent import search_research_papers_tool, generate_literature_review_tool
-
-tools = [
+from src.tools.agent_tools import (
     generate_project_plan_tool,
     link_github_repository_tool,
-    get_project_status_tool,
-    search_similar_projects_tool,
-    analyze_github_code_comprehensively_tool,  # NEW
-    match_code_to_tasks_semantic_tool,         # NEW
+    get_project_status_tool
+)
+
+
+
+from src.agents.research_agent import (
     search_research_papers_tool,
     generate_literature_review_tool
-]
+)
+
+# ---------------------------------------------------
 # Agent State
+# ---------------------------------------------------
+
 class AgentState(TypedDict):
-    messages: Annotated[Sequence[BaseMessage], lambda x, y: x + y]
+    messages: Annotated[Sequence[BaseMessage], add_messages]
     project_id: str
     current_project: dict
 
 
+# ---------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------
+
 class AgenticOrchestrator:
-    """
-    Agentic orchestrator where the agent decides what to do
-    """
-    
+
     def __init__(self):
+
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             google_api_key=os.getenv("GEMINI_KEY"),
             temperature=0.3
         )
-        self.llm_with_tools = self.llm.bind_tools(tools)
-        self.db = SimpleDB()
+
+        self.db = MySQLDB()
         self.memory = DemoMemory(self.db)
+
         self.current_project_id = None
         self.current_project = None
         self.messages_history = []
-        
-        # Build the graph
+
         self.app = self._build_graph()
-    
+
+
+# ---------------------------------------------------
+# Build Graph
+# ---------------------------------------------------
+
     def _build_graph(self):
-        """Build the LangGraph workflow"""
-        
-        # Define the graph
+
         workflow = StateGraph(AgentState)
-        
-        # Add nodes
-        workflow.add_node("agent", self._agent_node)
-        workflow.add_node("tools", self._tool_node)
-        
-        # Set entry point
-        workflow.set_entry_point("agent")
-        
-        # Add conditional edges
+
+        workflow.add_node("supervisor", self.supervisor_node)
+        workflow.add_node("planning_agent", self.planning_agent)
+        workflow.add_node("research_agent", self.research_agent)
+        workflow.add_node("github_agent", self.github_agent)
+        workflow.add_node("status_agent", self.status_agent)
+
+        workflow.set_entry_point("supervisor")
+
         workflow.add_conditional_edges(
-            "agent",
-            self._should_continue,
+            "supervisor",
+            self.route_agent,
             {
-                "continue": "tools",
+                "planning": "planning_agent",
+                "research": "research_agent",
+                "github": "github_agent",
+                "status": "status_agent",
                 "end": END
             }
         )
-        
-        # After tools, go back to agent
-        workflow.add_edge("tools", "agent")
-        
+
+        workflow.add_edge("planning_agent", END)
+        workflow.add_edge("research_agent", END)
+        workflow.add_edge("github_agent", END)
+        workflow.add_edge("status_agent", END)
+
         return workflow.compile()
-    
-    def _agent_node(self, state: AgentState) -> AgentState:
-        """
-        Agent node - decides what to do next
-        """
-        system_prompt = """You are an intelligent AI project assistant. Your role is to help users plan and manage their software projects.
 
-    You have access to these tools:
-    1. generate_project_plan_tool - Create a structured project plan with tasks
-    2. link_github_repository_tool - Connect a GitHub repository to the project
-    3. get_project_status_tool - Get current project information
-    4. search_similar_projects_tool - Find similar projects for inspiration
-    5. analyze_github_code_comprehensively_tool - Analyze entire GitHub repo by reading ALL code files
-    6. match_code_to_tasks_semantic_tool - Semantically match code to tasks and auto-update statuses
-    7. search_research_papers_tool - Search academic papers from ArXiv and Semantic Scholar
-    8. generate_literature_review_tool - Generate literature review with citations
 
-    Your workflow:
-    1. First, help the user REFINE their project idea by asking clarifying questions
-    2. Once the idea is clear, use generate_project_plan_tool to create the plan
-    3. If the user provides a GitHub URL, use link_github_repository_tool
-    4. To analyze what's actually coded, use analyze_github_code_comprehensively_tool
-    5. To update task statuses based on real code, use match_code_to_tasks_semantic_tool with just the GitHub URL
-    6. If user asks for research papers, use search_research_papers_tool
-    7. If user wants a literature review, use generate_literature_review_tool
-    8. If the user asks about status/progress, use get_project_status_tool
+# ---------------------------------------------------
+# Supervisor Agent
+# ---------------------------------------------------
 
-    IMPORTANT: 
-    - match_code_to_tasks_semantic_tool uses pure NLP - no task IDs needed
-    - It reads ALL code files and matches semantically to task descriptions
-    - Only pass github_url parameter
+    def supervisor_node(self, state: AgentState):
 
-    Be conversational and helpful. Don't use tools until you have enough information.
-    """
-        
+        system_prompt = """
+You are a supervisor agent.
+
+Choose which agent should handle the request.
+
+Agents:
+
+planning → generate project plan or modify tasks
+research → research papers or literature review
+github → GitHub repository analysis (if user provides a GitHub URL or mentions repo/code).If the user provides a GitHub URL → ALWAYS choose "github"
+status → project progress or tasks
+
+Return JSON ONLY:
+
+{
+ "agent": "planning | research | github | status | end",
+ "reason": "why this agent is appropriate"
+}
+"""
+
         messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
-        
-        response = self.llm_with_tools.invoke(messages)
-        
-        return {"messages": [response]}
-    
-    def _tool_node(self, state: AgentState) -> AgentState:
-        """
-        Execute tools that the agent decided to use
-        """
-        last_message = state["messages"][-1]
-        tool_calls = last_message.tool_calls
-        
-        results = []
-        
-        for tool_call in tool_calls:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
-            tool_id = tool_call["id"]
-            
-            print(f"\n🔧 Agent is using tool: {tool_name}")
-            print(f"   Arguments: {tool_args}")
-            
-            # Execute the appropriate tool
-            if tool_name == "generate_project_plan_tool":
-                result = generate_project_plan_tool.invoke(tool_args)
-                
-                # Parse and save to database
-                try:
-                    plan_data = json.loads(result)
-                    project_data = {
-                        'id': state["project_id"],
-                        'title': plan_data.get('title', 'Untitled Project'),
-                        'description': plan_data.get('description', ''),
-                        'tasks': plan_data.get('tasks', []),
-                        'github_url': None,
-                        'created_at': datetime.now().isoformat()
-                    }
-                    self.db.save_project(project_data)
-                    self.current_project = project_data
-                    
-                    result = f"✅ Project plan created successfully!\n\nTitle: {project_data['title']}\nDescription: {project_data['description']}\nTasks: {len(project_data['tasks'])} tasks created"
-                except json.JSONDecodeError:
-                    result = "Plan generated but couldn't parse. Please try again."
-            
-            elif tool_name == "link_github_repository_tool":
-                result = link_github_repository_tool.invoke(tool_args)
-                
-                if "SUCCESS" in result:
-                    github_url = tool_args.get("github_url")
-                    if self.current_project:
-                        self.current_project['github_url'] = github_url
-                        self.db.save_project(self.current_project)
-            
-            elif tool_name == "get_project_status_tool":
-                if self.current_project:
-                    project = self.current_project
-                    result = f"📊 Project: {project['title']}\n"
-                    result += f"Description: {project['description']}\n\n"
-                    result += f"Tasks ({len(project.get('tasks', []))}):\n"
-                    for task in project.get('tasks', [])[:5]:
-                        result += f"• [{task['status']}] {task['title']}\n"
-                else:
-                    result = "No active project. Start by describing your project idea."
-            
-            elif tool_name == "search_similar_projects_tool":
-                result = search_similar_projects_tool.invoke(tool_args)
 
-            elif tool_name == "analyze_github_code_comprehensively_tool":
-                result = analyze_github_code_comprehensively_tool.invoke(tool_args)
+        response = self.llm.invoke(messages)
 
-            elif tool_name == "match_code_to_tasks_semantic_tool" or tool_name == "match_code_to_tasks_tool":
-                # Semantic matching - no JSON, no task IDs needed
-                github_url = tool_args.get("github_url")
-                
-                if not self.current_project:
-                    result = "No active project found."
-                elif not github_url:
-                    result = "GitHub URL required"
-                else:
-                    tasks = self.current_project.get('tasks', [])
-                    
-                    if not tasks:
-                        result = "No tasks in project"
-                    else:
-                        from src.tools.github_analyzer import get_analyzer
-                        
-                        try:
-                            a = get_analyzer()
-                            
-                            # Step 1: Comprehensive code analysis
-                            print("📊 Analyzing entire codebase...")
-                            code_summary = a.summarize_codebase(github_url)
-                            
-                            if 'error' in code_summary:
-                                result = f"Error: {code_summary['error']}"
-                            else:
-                                features = code_summary['features']
-                                
-                                # Step 2: Semantic matching
-                                print(f"🔍 Matching {len(features)} features to {len(tasks)} tasks...")
-                                matches = a.match_features_to_tasks(features, tasks)
-                                
-                                # Step 3: Update tasks
-                                updated_count = 0
-                                result = "🔍 **Semantic Code Analysis Complete**\n\n"
-                                result += f"Analyzed {code_summary['total_files']} files\n"
-                                result += f"Found {len(features)} features\n\n"
-                                result += "**Task Updates:**\n\n"
-                                
-                                for match in matches:
-                                    if match['task']:
-                                        task = match['task']
-                                        old_status = task['status']
-                                        new_status = match['new_status']
-                                        
-                                        result += f"**{task['title']}**\n"
-                                        result += f"  Implemented: {match['implemented']}\n"
-                                        result += f"  Status: {old_status} → {new_status}\n"
-                                        result += f"  Evidence: {match['evidence']}\n"
-                                        result += f"  Confidence: {match['confidence']}\n\n"
-                                        
-                                        # Update if status changed
-                                        if old_status != new_status and match['confidence'] in ['High', 'Medium']:
-                                            task['status'] = new_status
-                                            updated_count += 1
-                                            print(f"  ✓ {task['title']}: {old_status} → {new_status}")
-                                
-                                # Save updates
-                                if updated_count > 0:
-                                    self.db.save_project(self.current_project)
-                                    result += f"\n✅ **Updated {updated_count} task(s)**"
-                                else:
-                                    result += "\n📝 No status changes needed"
-                            
-                        except Exception as e:
-                            result = f"Error: {str(e)}"
-                            print(f"❌ Error: {e}")
-                            import traceback
-                            traceback.print_exc()
+        return {"messages": state["messages"] + [response]}
 
-            elif tool_name == "search_research_papers_tool":
-                result = search_research_papers_tool.invoke(tool_args)
 
-            elif tool_name == "generate_literature_review_tool":
-                result = generate_literature_review_tool.invoke(tool_args)
-            
-            else:
-                result = f"Tool {tool_name} not implemented"
-            
-            results.append(
-                ToolMessage(
-                    content=result,
-                    tool_call_id=tool_id,
-                    name=tool_name
-                )
-            )
+# ---------------------------------------------------
+# Routing Logic
+# ---------------------------------------------------
+
+    def route_agent(self, state: AgentState) -> Literal[
+        "planning",
+        "research",
+        "github",
+        "status",
+        "end"
+    ]:
+
         
-        return {"messages": results}
-    
-    def _should_continue(self, state: AgentState) -> Literal["continue", "end"]:
+
+        decision_text = state["messages"][-1].content
+
+        try:
+            parsed = json.loads(decision_text)
+            decision = parsed.get("agent", "").lower()
+        except:
+            decision = decision_text.lower()
+
+        if "planning" in decision:
+            return "planning"
+
+        if "research" in decision:
+            return "research"
+
+        if "github" in decision:
+            return "github"
+
+        if "status" in decision:
+            return "status"
+
+        return "end"
+
+
+# ---------------------------------------------------
+# Planning Agent
+# ---------------------------------------------------
+
+    def planning_agent(self, state: AgentState):
+
+        conversation = "\n".join([m.content for m in state["messages"]])
+
+        project_context = state["current_project"]
+
+        conversation += f"""
+
+        Current Project:
+        {project_context}
         """
-        Decide if we should continue to tools or end
-        """
-        last_message = state["messages"][-1]
+
+        result = generate_project_plan_tool.invoke({
+            "conversation_context": conversation
+        })
+
+        try:
+            project_data = json.loads(result)
+
+            project_data["id"] = state["project_id"]
+
+            # Save to MySQL
+            self.db.save_project(project_data)
+
+            # Update current project in memory
+            self.current_project = project_data
+
+        except Exception as e:
+            print("Error saving project:", e)
+
+        return {"messages": [AIMessage(content=result)]}
+
+
+# ---------------------------------------------------
+# Research Agent
+# ---------------------------------------------------
+
+    def research_agent(self, state: AgentState):
+
+        raw_input = state["messages"][0].content.lower()
+
+        # Extract meaningful keywords
+        keywords = []
+
+        if "email" in raw_input:
+            keywords.append("email")
+
+        if "response" in raw_input:
+            keywords.append("response generation")
+
+        if "automated" in raw_input:
+            keywords.append("automation")
+
+        if "nlp" in raw_input or "language" in raw_input:
+            keywords.append("natural language processing")
+
+        # fallback
+        if not keywords:
+            keywords = raw_input.split()[:5]
+
+        query = " ".join(keywords)
+
+        result = generate_literature_review_tool.invoke({
+            "query": query,
+            "project_description": state["current_project"].get("description", query)
+        })
+
+        return {"messages": [AIMessage(content=result)]}
+
+
+# ---------------------------------------------------
+# GitHub Agent
+# ---------------------------------------------------
+
+    def github_agent(self, state: AgentState):
+
+        # ✅ 1. Extract LAST HUMAN MESSAGE (CRITICAL FIX)
+        user_input = None
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, HumanMessage):
+                user_input = msg.content
+                break
+
+        if not user_input:
+            return {
+                "messages": [
+                    AIMessage(content="❌ No user input found.")
+                ]
+            }
+
+        user_input = user_input.strip()
+
+        print("REAL USER INPUT >>>", repr(user_input))
+
+        # ✅ 2. Robust GitHub URL extraction
+        match = re.search(r'https://github\.com/[^\s]+', user_input)
+
+        if not match:
+            return {
+                "messages": [
+                    AIMessage(content=f"❌ Could not detect GitHub URL in: {user_input}")
+                ]
+            }
+
+        github_url = match.group(0).rstrip('.,)\n ')
+
+        print("EXTRACTED URL:", github_url)
+
+        # ✅ 3. Run analysis
+        result = run_github_analysis(github_url)
+
+        if not result["success"]:
+            return {
+                "messages": [
+                    AIMessage(content=f"❌ Error analyzing repository: {result['error']}")
+                ]
+            }
+
+        # ✅ 4. Final response
+        response = f"""
+    📊 **GitHub Repository Analysis**
+
+    🔗 Repo: {github_url}
+
+    📌 **Project Summary:**
+    {result['summary']}
+
+    📄 Documents Stored in Memory: {result['documents_count']}
+
+    🧠 You can now ask:
+    - Tech stack used
+    - File-level explanations
+    - Feature breakdown
+    """
+
+        return {"messages": [AIMessage(content=response)]}
         
-        # If the last message has tool calls, continue to tools
-        if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-            return "continue"
-        else:
-            return "end"
-    
-    def start_session(self, project_id: str = None):
-        """Start a new session"""
+
+
+# ---------------------------------------------------
+# Status Agent
+# ---------------------------------------------------
+
+    def status_agent(self, state: AgentState):
+
+        result = get_project_status_tool.invoke({})
+
+        return {"messages": [AIMessage(content=result)]}
+
+
+# ---------------------------------------------------
+# Session Management
+# ---------------------------------------------------
+
+    def start_session(self, project_id=None):
+
         if project_id:
             self.current_project_id = project_id
             self.current_project = self.db.get_project(project_id)
-            
-            # Load memory
+
             context = self.memory.load_context(project_id)
-            print(f"\n📚 Memory Loaded:\n{context}\n")
+            print("\nMemory Loaded:\n", context)
+
         else:
             self.current_project_id = str(uuid.uuid4())
             self.current_project = None
-    
-    def chat(self, user_input: str) -> str:
-        """
-        Main chat function - uses agentic workflow
-        """
-        # Track user message for session memory
-        self.messages_history.append({'role': 'user', 'content': user_input})
+
+
+# ---------------------------------------------------
+# Chat Entry
+# ---------------------------------------------------
+
+    def chat(self, user_input: str):
+        print("USER INPUT:", user_input)
+
+        self.messages_history.append({
+            "role": "user",
+            "content": user_input
+        })
         
-        # Create initial state
+
+        # Retrieve memory context
+        session_context = self.memory.load_context(self.current_project_id)
+
+        recent_context = self.memory.get_recent_transcript(self.current_project_id)
+
+        vector_context = self.memory.retrieve_semantic_memory(
+            user_input,
+            self.current_project_id
+        )
+
+        project_context = ""
+
+        if self.current_project:
+            project_context = f"""
+            Project Info
+            Title: {self.current_project.get('title')}
+            Description: {self.current_project.get('description')}
+            Tech Stack: {self.current_project.get('tech_stack')}
+            GitHub: {self.current_project.get('github_url')}
+            """
+
+        system_context = f"""
+        Previous Sessions:
+        {session_context}
+
+        Recent Conversation:
+        {recent_context}
+        
+        Relevant Memory:
+        {vector_context}
+
+        {project_context}
+        """
+
         state = {
-            "messages": [HumanMessage(content=user_input)],
+            "messages": [
+                SystemMessage(content=system_context),
+                HumanMessage(content=user_input)
+            ],
             "project_id": self.current_project_id,
             "current_project": self.current_project or {}
         }
-        
-        # Run the agentic workflow
-        final_state = self.app.invoke(state)
-        
-        # Extract the last AI message
-        last_message = final_state["messages"][-1]
-        
-        # Update current project if it changed
-        if final_state.get("current_project"):
-            self.current_project = final_state["current_project"]
-        
-        # Extract clean text from response
-        content = last_message.content
-        
-        # Handle structured response format
-        if isinstance(content, list):
-            # Extract text from list of content blocks
-            text_parts = []
-            for item in content:
-                if isinstance(item, dict) and item.get('type') == 'text':
-                    text_parts.append(item.get('text', ''))
-            content = '\n'.join(text_parts) if text_parts else str(content)
-        
-        # Track AI response for session memory
-        self.messages_history.append({'role': 'assistant', 'content': content})
-        
+
+        result = self.app.invoke(state)
+        print("RAW RESULT:", result)
+        last_message = result["messages"][-1]
+
+        content = last_message.content if last_message.content else "⚠️ No response generated. Try rephrasing."
+
+        self.messages_history.append({
+            "role": "assistant",
+            "content": content
+        })
+
+        if len(self.messages_history) > 20:
+            self.messages_history = self.messages_history[-20:]
+
         return content
-    
+
+
+# ---------------------------------------------------
+# End Session
+# ---------------------------------------------------
+
     def end_session(self):
-        """End session and save to memory"""
+
         if not self.messages_history:
-            print("No messages to save")
             return
-        
-        # Convert conversation to message format for memory
-        from langchain_core.messages import HumanMessage, AIMessage
-        
+
         messages = []
-        for msg in self.messages_history:
-            if msg['role'] == 'user':
-                messages.append(HumanMessage(content=msg['content']))
+
+        for m in self.messages_history:
+
+            if m["role"] == "user":
+                messages.append(HumanMessage(content=m["content"]))
+
             else:
-                messages.append(AIMessage(content=msg['content']))
-        
-        if messages and self.current_project_id:
-            session = self.memory.save_session(self.current_project_id, messages)
-            print(f"\n💾 Session Saved!")
-            print(f"Summary: {session['summary']}\n")
-        else:
-            print("No session to save")
+                messages.append(AIMessage(content=m["content"]))
+
+        session = self.memory.save_session(
+            self.current_project_id,
+            messages
+        )

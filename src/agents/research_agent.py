@@ -1,29 +1,32 @@
 """
 Research Paper Agent - Searches academic papers and generates literature reviews
 """
-from langchain_google_genai import ChatGoogleGenerativeAI
+from wsgiref import headers
+
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 import os
+import re
+from pyparsing import line  
 import requests
 from typing import List, Dict
 import json
+from src.core.llm import get_llm
+
+llm = get_llm()
 
 class ResearchPaperAgent:
     """Agent for academic paper research and citation management"""
     
     def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GEMINI_KEY")
-        )
         self.arxiv_base = "http://export.arxiv.org/api/query"
         self.semantic_base = "https://api.semanticscholar.org/graph/v1"
+        self.llm = llm
     
     def search_arxiv(self, query: str, max_results: int = 10) -> List[Dict]:
         """Search ArXiv for academic papers"""
         params = {
-            'search_query': f'all:{query}',
+            'search_query': f'ti:{query} OR abs:{query}',
             'start': 0,
             'max_results': max_results,
             'sortBy': 'relevance',
@@ -67,7 +70,8 @@ class ResearchPaperAgent:
                 'fields': 'title,authors,year,abstract,citationCount,url'
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            headers = {"User-Agent": "research-agent/1.0"}
+            response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
             
@@ -135,7 +139,10 @@ REASON: [brief reason]
         for line in lines:
             line = line.strip()
             if line.startswith('PAPER_ID:'):
-                current_paper = int(line.split(':')[1].strip())
+                try:
+                    current_paper = int(line.split(':')[1].strip())
+                except:
+                    current_paper = None
                 rankings[current_paper] = {'score': 0.0, 'reason': ''}
             elif line.startswith('SCORE:') and current_paper:
                 try:
@@ -178,21 +185,44 @@ REASON: [brief reason]
             detail += f"  Relevance: {paper.get('relevance_score', 0.5):.2f} - {paper.get('relevance_reason', '')}\n"
             paper_details.append(detail)
         
-        review_prompt = f"""Generate a professional literature review for an academic paper.
+        review_prompt = f"""
+            You are an AI research assistant helping build a real-world project.
 
-PROJECT: {project_description}
+            PROJECT:
+            {project_description}
 
-RELEVANT PAPERS:
-{''.join(paper_details)}
+            RELEVANT PAPERS:
+            {''.join(paper_details)}
 
-Write a comprehensive literature review that:
-1. Introduces the research area
-2. Discusses each paper's contribution
-3. Identifies gaps in existing research
-4. Explains how this project addresses those gaps
+            Your job:
 
-Format as academic prose with proper citations [Author et al., Year].
-"""
+            1. Extract KEY FINDINGS from the papers
+            2. Identify common techniques used
+            3. Suggest BEST APPROACH for this project
+            4. Recommend TECH STACK and MODELS
+            5. Highlight RESEARCH GAPS
+            6. Suggest IMPLEMENTATION STRATEGY
+
+            Format response as:
+
+            ## 🔬 Key Insights from Research
+            - insight 1
+            - insight 2
+
+            ## ⚙️ Recommended Approach
+            - step-by-step approach
+
+            ## 🧠 Suggested Tech Stack
+            - tools, models, frameworks
+
+            ## 🚀 Implementation Strategy
+            - how to build this project
+
+            ## ⚠️ Research Gaps / Challenges
+            - limitations
+
+            Keep it practical and relevant to the project.
+            """
         
         review = self.llm.invoke([HumanMessage(content=review_prompt)]).content
         
@@ -251,6 +281,8 @@ def search_research_papers_tool(query: str, max_results: int = 10) -> str:
     Returns:
         List of relevant academic papers with titles, authors, and summaries
     """
+    query = re.sub(r'```.*?```', '', query, flags=re.DOTALL).strip()
+    print("🔧 Agent is using tool: search_research_papers_tool")
     agent = get_research_agent()
     
     # Search both sources
@@ -258,7 +290,34 @@ def search_research_papers_tool(query: str, max_results: int = 10) -> str:
     semantic_papers = agent.search_semantic_scholar(query, max_results//2)
     
     all_papers = arxiv_papers + semantic_papers
-    
+
+    seen_titles = set()
+    unique_papers = []
+
+    for paper in all_papers:
+        if paper["title"] not in seen_titles:
+            unique_papers.append(paper)
+            seen_titles.add(paper["title"])
+
+    all_papers = unique_papers
+    # ✅ NEW: Relevance filtering
+
+    query_keywords = re.findall(r'\w+', query.lower())
+    query_keywords = [w for w in query_keywords if len(w) > 3]
+
+    filtered_papers = []
+
+    for paper in all_papers:
+        text = (paper["title"] + " " + paper["summary"]).lower()
+
+        # Check if any keyword matches
+        if any(keyword in text for keyword in query_keywords):
+            filtered_papers.append(paper)
+
+    # Fallback if filtering removes everything
+    if filtered_papers:
+        all_papers = filtered_papers
+
     if not all_papers:
         return f"No papers found for query: {query}"
     
@@ -290,16 +349,36 @@ def generate_literature_review_tool(query: str, project_description: str) -> str
     Returns:
         Formatted literature review with citations
     """
+    print("🔧 Agent is using tool: generate_literature_review_tool")
     agent = get_research_agent()
     
     # Search papers
     arxiv_papers = agent.search_arxiv(query, 10)
     semantic_papers = agent.search_semantic_scholar(query, 10)
     all_papers = arxiv_papers + semantic_papers
+
+    seen_titles = set()
+    unique_papers = []
+
+    for paper in all_papers:
+        if paper["title"] not in seen_titles:
+            unique_papers.append(paper)
+            seen_titles.add(paper["title"])
+
+    all_papers = unique_papers
     
     if not all_papers:
-        return "No papers found to generate literature review."
-    
+        print("⚠️ No results, retrying with fallback query...")
+
+        fallback_query = "email classification NLP automated response generation"
+
+        arxiv_papers = agent.search_arxiv(fallback_query, 5)
+        semantic_papers = agent.search_semantic_scholar(fallback_query, 5)
+
+        all_papers = arxiv_papers + semantic_papers
+
+        if not all_papers:
+            return "❌ Could not find relevant papers. Try a more specific research topic."    
     # Rank by relevance
     ranked_papers = agent.rank_papers_by_relevance(all_papers, project_description)
     

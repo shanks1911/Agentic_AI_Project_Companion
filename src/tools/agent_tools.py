@@ -4,10 +4,12 @@
 print(" CLI Started 3")
 
 from langchain_core.tools import tool
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 import os
 import re
+from src.core.llm import get_llm
+
+llm = get_llm()
 
 
 @tool
@@ -22,11 +24,8 @@ def generate_project_plan_tool(conversation_context: str) -> str:
     Returns:
         A JSON string containing the project plan with title, description, and tasks
     """
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=os.getenv("GEMINI_KEY")
-    )
     
+    print("🔧 Agent is using tool: generate_project_plan_tool")
     prompt = f"""Create a project plan as JSON with:
 - title (string)
 - description (string) 
@@ -37,7 +36,9 @@ Conversation: {conversation_context}
 Return only valid JSON."""
     
     response = llm.invoke([HumanMessage(content=prompt)]).content
+    print("TOOL OUTPUT BEFORE STRIP:", response)
     response = response.replace('```json', '').replace('```', '').strip()
+    print("TOOL OUTPUT AFTER STRIP:", response)
     return response
 
 print(" CLI Started 5")
@@ -54,6 +55,7 @@ def link_github_repository_tool(github_url: str) -> str:
     Returns:
         Confirmation message
     """
+    print("🔧 Agent is using tool: link_github_repository_tool")
     if not re.match(r'https://github\.com/[\w-]+/[\w-]+', github_url):
         return "Invalid GitHub URL format. Expected: https://github.com/username/repo"
     
@@ -69,6 +71,7 @@ def get_project_status_tool() -> str:
     Returns:
         Current project information including tasks
     """
+    print("🔧 Agent is using tool: get_project_status_tool")
     return "REQUEST_PROJECT_STATUS"
 
 
