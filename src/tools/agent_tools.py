@@ -29,7 +29,14 @@ def generate_project_plan_tool(conversation_context: str) -> str:
     prompt = f"""Create a project plan as JSON with:
 - title (string)
 - description (string) 
-- tasks (array of objects with id, title, description, status)
+- tasks (array of objects with:
+    id,
+    title,
+    description,
+    status,
+    start_date,
+    end_date
+)
 
 Conversation: {conversation_context}
 

@@ -5,6 +5,9 @@ Run: streamlit run streamlit_agentic_demo.py
 import streamlit as st
 from dotenv import load_dotenv
 from src.agentic_orchestrator import AgenticOrchestrator
+from datetime import datetime
+import plotly.express as px
+import pandas as pd
 import time
 import io
 import sys
@@ -333,43 +336,188 @@ with tab1:
             st.session_state.tool_logs = []
             st.rerun()
 
+from datetime import datetime
+
+from datetime import datetime, timedelta
+
 with tab2:
     st.subheader("📋 Project Tasks")
-    
+
     if st.session_state.app.current_project:
         project = st.session_state.app.current_project
         tasks = project.get('tasks', [])
-        
-        if tasks:
-            st.write(f"**Total Tasks:** {len(tasks)}")
-            completed = len([t for t in tasks if t.get('status') == 'Completed'])
-            progress = completed / len(tasks) if tasks else 0
-            st.progress(progress)
-            st.caption(f"{completed} of {len(tasks)} completed")
-            st.divider()
-            
-            for task in tasks:
-                with st.container():
-                    col1, col2 = st.columns([4, 1])
-                    
-                    with col1:
-                        st.markdown(f"""
-                        <div class="task-item">
-                            <strong>#{task['id']} - {task['title']}</strong><br>
-                            <small>{task['description']}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col2:
-                        status_color = "#ffc107" if task['status'] == "To-Do" else "#28a745"
-                        st.markdown(f"""
-                        <div style="background:{status_color};padding:0.2rem 0.5rem;border-radius:0.3rem;text-align:center;font-size:0.8rem;font-weight:bold;color:white;">
-                            {task['status']}
-                        </div>
-                        """, unsafe_allow_html=True)
-        else:
-            st.info("No active project. Start a conversation!")
 
+        today = datetime.today()
+
+        # 🔥 NORMALIZE TASKS (CRITICAL FIX)
+        for t in tasks:
+
+            # ---------- STATUS FIX ----------
+            if not t.get("status") or t["status"] not in ["To-Do", "In Progress", "Completed"]:
+                t["status"] = "To-Do"
+
+            # ---------- DATE FIX ----------
+            start = t.get("start_date")
+            end = t.get("end_date")
+
+            try:
+                start_dt = datetime.strptime(start, "%Y-%m-%d") if start else today
+            except:
+                start_dt = today
+
+            try:
+                end_dt = datetime.strptime(end, "%Y-%m-%d") if end else (start_dt + timedelta(days=3))
+            except:
+                end_dt = start_dt + timedelta(days=3)
+
+            # Fix past start
+            if start_dt < today:
+                start_dt = today
+
+            # Fix invalid end
+            if end_dt <= start_dt:
+                end_dt = start_dt + timedelta(days=3)
+
+            t["start_date"] = start_dt.strftime("%Y-%m-%d")
+            t["end_date"] = end_dt.strftime("%Y-%m-%d")
+
+        # ✅ Save normalized data
+        st.session_state.app.db.save_project(project)
+
+        # 🔥 OPTIONAL: USER DEADLINE
+        st.divider()
+        deadline = st.date_input("📅 Project Deadline (optional)")
+
+        if deadline:
+            days_per_task = max(1, (deadline - today.date()).days // max(1, len(tasks)))
+
+            for i, t in enumerate(tasks):
+                start_dt = today + timedelta(days=i * days_per_task)
+                end_dt = start_dt + timedelta(days=days_per_task)
+
+                t["start_date"] = start_dt.strftime("%Y-%m-%d")
+                t["end_date"] = end_dt.strftime("%Y-%m-%d")
+
+            st.session_state.app.db.save_project(project)
+            st.success("Timeline updated based on deadline")
+
+        # 🔥 SUB-TABS
+        subtab1, subtab2, subtab3 = st.tabs(["📝 To-Do List", "📊 Gantt", "🧱 Kanban"])
+
+        # ---------------- TODO LIST ----------------
+        with subtab1:
+            if tasks:
+                st.write(f"**Total Tasks:** {len(tasks)}")
+
+                completed = len([t for t in tasks if t["status"] == "Completed"])
+                progress = completed / len(tasks)
+
+                st.progress(progress)
+                st.caption(f"{completed} of {len(tasks)} completed")
+
+                st.divider()
+
+                for task in tasks:
+                    st.markdown(f"""
+                    <div class="task-item">
+                        <strong>#{task['id']} - {task['title']}</strong><br>
+                        <small>{task['description']}</small><br>
+                        <b>Status:</b> {task['status']}
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("No tasks found.")
+
+        # ---------------- GANTT ----------------
+        with subtab2:
+            st.subheader("📊 Project Timeline")
+
+            gantt_data = []
+
+            for t in tasks:
+                gantt_data.append({
+                    "Task": t["title"],
+                    "Start": t["start_date"],
+                    "Finish": t["end_date"],
+                    "Status": t["status"]
+                })
+
+            df = pd.DataFrame(gantt_data)
+
+            fig = px.timeline(
+                df,
+                x_start="Start",
+                x_end="Finish",
+                y="Task",
+                color="Status"
+            )
+
+            fig.update_yaxes(autorange="reversed")
+            st.plotly_chart(fig, use_container_width=True)
+
+        # ---------------- KANBAN ----------------
+        with subtab3:
+            st.subheader("🧱 Kanban Board")
+
+            def update_task_status(task_id, new_status):
+                for t in project["tasks"]:
+                    if t["id"] == task_id:
+                        t["status"] = new_status
+
+                st.session_state.app.db.save_project(project)
+
+                # Refresh
+                st.session_state.app.current_project = st.session_state.app.db.get_project(
+                    st.session_state.current_project_id
+                )
+
+            # ✅ SAFE FILTERS (fix empty issue)
+            todo = [t for t in tasks if t.get("status", "To-Do") == "To-Do"]
+            in_progress = [t for t in tasks if t.get("status") == "In Progress"]
+            done = [t for t in tasks if t.get("status") == "Completed"]
+
+            col1, col2, col3 = st.columns(3)
+
+            def render_column(title, task_list, color):
+                st.markdown(f"### {title}")
+
+                for task in task_list:
+                    st.markdown(f"""
+                    <div style="
+                        background:{color};
+                        padding:10px;
+                        border-radius:8px;
+                        margin-bottom:10px;
+                        color:white;
+                    ">
+                    <strong>{task['title']}</strong><br>
+                    <small>{task['description']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    new_status = st.selectbox(
+                        f"Update #{task['id']}",
+                        ["To-Do", "In Progress", "Completed"],
+                        index=["To-Do", "In Progress", "Completed"].index(task["status"]),
+                        key=f"status_{task['id']}"
+                    )
+
+                    if new_status != task["status"]:
+                        update_task_status(task["id"], new_status)
+                        st.rerun()
+
+            with col1:
+                render_column("📝 To-Do", todo, "#6c757d")
+
+            with col2:
+                render_column("🚧 In Progress", in_progress, "#ffc107")
+
+            with col3:
+                render_column("✅ Completed", done, "#28a745")
+
+    else:
+        st.info("No active project. Start a conversation first.")
+        
 with tab3 :
             st.subheader("📚 Research Papers & Literature Review")
             
