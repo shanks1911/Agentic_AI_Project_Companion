@@ -371,7 +371,7 @@ with tab2:
                 end_dt = start_dt + timedelta(days=3)
 
             # Fix past start
-            if start_dt < today:
+            if t["status"] != "Completed" and start_dt < today:
                 start_dt = today
 
             # Fix invalid end
@@ -384,22 +384,61 @@ with tab2:
         # ✅ Save normalized data
         st.session_state.app.db.save_project(project)
 
-        # 🔥 OPTIONAL: USER DEADLINE
+        # 🔥 DEADLINE WITH PERSISTENCE + SMART TIMELINE
         st.divider()
-        deadline = st.date_input("📅 Project Deadline (optional)")
+
+        stored_deadline = project.get("deadline")
+
+        deadline = st.date_input(
+            "📅 Project Deadline (optional)",
+            value=datetime.strptime(stored_deadline, "%Y-%m-%d").date()
+            if stored_deadline else today.date()
+        )
 
         if deadline:
-            days_per_task = max(1, (deadline - today.date()).days // max(1, len(tasks)))
 
-            for i, t in enumerate(tasks):
-                start_dt = today + timedelta(days=i * days_per_task)
-                end_dt = start_dt + timedelta(days=days_per_task)
+            deadline_str = deadline.strftime("%Y-%m-%d")
 
-                t["start_date"] = start_dt.strftime("%Y-%m-%d")
-                t["end_date"] = end_dt.strftime("%Y-%m-%d")
+            # ✅ Only update if deadline changed
+            if project.get("deadline") != deadline_str:
 
-            st.session_state.app.db.save_project(project)
-            st.success("Timeline updated based on deadline")
+                project["deadline"] = deadline_str  # SAVE DEADLINE
+
+                total_days = max(1, (deadline - today.date()).days)
+
+                # Preserve status
+                completed_tasks = [t for t in tasks if t["status"] == "Completed"]
+                in_progress_tasks = [t for t in tasks if t["status"] == "In Progress"]
+                todo_tasks = [t for t in tasks if t["status"] == "To-Do"]
+
+                ordered_tasks = completed_tasks + in_progress_tasks + todo_tasks
+
+                n = len(ordered_tasks)
+
+                if n > 0:
+                    for i, t in enumerate(ordered_tasks):
+
+                        start_offset = int((i * total_days) / n)
+                        end_offset = int(((i + 1) * total_days) / n)
+
+                        start_dt = today + timedelta(days=start_offset)
+                        end_dt = today + timedelta(days=end_offset)
+
+                        # Ensure last task ends EXACTLY on deadline
+                        if i == n - 1:
+                            end_dt = datetime.combine(deadline, datetime.min.time())
+
+                        t["start_date"] = start_dt.strftime("%Y-%m-%d")
+                        t["end_date"] = end_dt.strftime("%Y-%m-%d")
+                # ✅ SAVE
+                st.session_state.app.db.save_project(project)
+
+                # ✅ RELOAD (IMPORTANT)
+                st.session_state.app.current_project = st.session_state.app.db.get_project(
+                    st.session_state.current_project_id
+                )
+
+                st.success(f"✅ Timeline updated → Deadline: {deadline_str}")
 
         # 🔥 SUB-TABS
         subtab1, subtab2, subtab3 = st.tabs(["📝 To-Do List", "📊 Gantt", "🧱 Kanban"])
