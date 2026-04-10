@@ -178,14 +178,15 @@ REASON: [brief reason]
         top_papers = papers[:5]
         
         paper_details = []
-        for paper in top_papers:
-            detail = f"- **{paper['title']}** ({paper['published']})\n"
+        for idx, paper in enumerate(top_papers):
+            paper['cite_id'] = idx + 1   # ✅ ADD THIS
+            detail = f"[{paper['cite_id']}] **{paper['title']}** ({paper['published']})\n"
             detail += f"  Authors: {', '.join(paper['authors'][:3])}\n"
             detail += f"  Summary: {paper['summary']}\n"
             detail += f"  Relevance: {paper.get('relevance_score', 0.5):.2f} - {paper.get('relevance_reason', '')}\n"
             paper_details.append(detail)
         
-        review_prompt = f"""
+            review_prompt = f"""
             You are an AI research assistant helping build a real-world project.
 
             PROJECT:
@@ -193,6 +194,14 @@ REASON: [brief reason]
 
             RELEVANT PAPERS:
             {''.join(paper_details)}
+
+            IMPORTANT INSTRUCTION:
+            - Each paper is labeled with a number like [1], [2], etc.
+            - When you use any idea, method, or finding from a paper,
+            you MUST cite it inline using its number.
+
+            Example:
+            "Transformer models significantly improve classification accuracy [1][3]."
 
             Your job:
 
@@ -206,11 +215,10 @@ REASON: [brief reason]
             Format response as:
 
             ## 🔬 Key Insights from Research
-            - insight 1
-            - insight 2
+            - insight with citation [1]
 
             ## ⚙️ Recommended Approach
-            - step-by-step approach
+            - step-by-step approach with citations
 
             ## 🧠 Suggested Tech Stack
             - tools, models, frameworks
@@ -221,9 +229,10 @@ REASON: [brief reason]
             ## ⚠️ Research Gaps / Challenges
             - limitations
 
-            Keep it practical and relevant to the project.
-            """
-        
+            STRICT RULE:
+            - Every major claim MUST have citation(s)
+            - Use [number] format only
+            """        
         review = self.llm.invoke([HumanMessage(content=review_prompt)]).content
         
         return review
@@ -232,14 +241,16 @@ REASON: [brief reason]
         """Generate formatted citations"""
         citations = []
         
-        for paper in papers:
+        for idx, paper in enumerate(papers):
             if style == "APA":
                 authors = paper['authors'][:3]
                 author_str = ', '.join(authors)
                 if len(paper['authors']) > 3:
                     author_str += ', et al.'
                 
-                citation = f"{author_str} ({paper['published']}). {paper['title']}. "
+                cite_id = paper.get('cite_id', idx + 1)
+
+                citation = f"[{cite_id}] {author_str} ({paper['published']}). {paper['title']}. "
                 citation += f"Retrieved from {paper['link']}"
                 
             elif style == "IEEE":
