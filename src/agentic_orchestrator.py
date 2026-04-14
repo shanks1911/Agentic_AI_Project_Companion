@@ -24,7 +24,8 @@ from src.tools.agent_tools import (
     get_project_status_tool
 )
 
-
+from src.core.llm import get_llm
+from src.agents.idea_agent import idea_followup_tool
 
 from src.agents.research_agent import (
     search_research_papers_tool,
@@ -78,6 +79,7 @@ class AgenticOrchestrator:
         workflow.add_node("research_agent", self.research_agent)
         workflow.add_node("github_agent", self.github_agent)
         workflow.add_node("status_agent", self.status_agent)
+        workflow.add_node("idea_agent", self.idea_agent)
 
         workflow.set_entry_point("supervisor")
 
@@ -89,6 +91,7 @@ class AgenticOrchestrator:
                 "research": "research_agent",
                 "github": "github_agent",
                 "status": "status_agent",
+                "idea": "idea_agent",
                 "end": END
             }
         )
@@ -97,6 +100,7 @@ class AgenticOrchestrator:
         workflow.add_edge("research_agent", END)
         workflow.add_edge("github_agent", END)
         workflow.add_edge("status_agent", END)
+        workflow.add_edge("idea_agent", END)
 
         return workflow.compile()
 
@@ -107,32 +111,138 @@ class AgenticOrchestrator:
 
     def supervisor_node(self, state: AgentState):
 
+        user_input = ""
+
+        # Get latest real user message
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, HumanMessage):
+                user_input = msg.content.lower().strip()
+                break
+
+        # ==================================================
+        # HARD RULES (prevent wrong LLM routing)
+        # ==================================================
+
+        how_keywords = [
+            "how to", "how do i", "how can i",
+            "implement", "explain", "guide me",
+            "best way", "help me build",
+        ]
+
+        followup_keywords = [
+            "summary", "summarize", "clarify",
+            "refine", "improve", "compare",
+            "simplify", "why", "what next",
+            "tell me more", "details",
+            "can you explain", "elaborate"
+        ]
+
+        planning_keywords = [
+            "generate plan", "project plan",
+            "roadmap", "timeline",
+            "create tasks", "milestones",
+            "task breakdown", "full plan",
+            "build project plan"
+        ]
+
+        research_keywords = [
+            "literature review", "research paper",
+            "papers on", "survey paper",
+            "recent papers", "academic papers"
+        ]
+
+        status_keywords = [
+            "status", "progress",
+            "what is pending", "completed tasks",
+            "remaining tasks", "deadline",
+            "behind schedule", "project status"
+        ]
+
+        # ---------- GitHub ----------
+        if "github.com/" in user_input:
+            return {
+                "messages": state["messages"] + [
+                    AIMessage(content='{"agent":"github","reason":"GitHub URL detected"}')
+                ]
+            }
+
+        # ---------- Research ----------
+        if any(k in user_input for k in research_keywords):
+            return {
+                "messages": state["messages"] + [
+                    AIMessage(content='{"agent":"research","reason":"research request"}')
+                ]
+            }
+
+        # ---------- Status ----------
+        if any(k in user_input for k in status_keywords):
+            return {
+                "messages": state["messages"] + [
+                    AIMessage(content='{"agent":"status","reason":"status request"}')
+                ]
+            }
+
+        # ---------- Planning ----------
+        if any(k in user_input for k in planning_keywords):
+            return {
+                "messages": state["messages"] + [
+                    AIMessage(content='{"agent":"planning","reason":"planning request"}')
+                ]
+            }
+
+        # ---------- Idea / Follow-up ----------
+        if any(k in user_input for k in how_keywords):
+            return {
+                "messages": state["messages"] + [
+                    AIMessage(content='{"agent":"idea","reason":"implementation/how-to request"}')
+                ]
+            }
+
+        if any(k in user_input for k in followup_keywords):
+            return {
+                "messages": state["messages"] + [
+                    AIMessage(content='{"agent":"idea","reason":"follow-up request"}')
+                ]
+            }
+
+        # ==================================================
+        # LLM FALLBACK
+        # ==================================================
+
         system_prompt = """
-You are a supervisor agent.
+    You are a supervisor agent.
 
-Choose which agent should handle the request.
+    Choose best agent.
 
-Agents:
+    Agents:
 
-planning → generate project plan or modify tasks
-research → research papers or literature review
-github → GitHub repository analysis (if user provides a GitHub URL or mentions repo/code).If the user provides a GitHub URL → ALWAYS choose "github"
-status → project progress or tasks
+    planning → create plans, tasks, milestones, timelines
 
-Return JSON ONLY:
+    research → papers, literature review, surveys
 
-{
- "agent": "planning | research | github | status | end",
- "reason": "why this agent is appropriate"
-}
-"""
+    github → repository/code/GitHub analysis
+
+    status → progress, pending work, deadlines
+
+    idea → implementation help, summaries, explanations,
+    follow-up questions, refinements, comparisons
+
+    IMPORTANT:
+    If unsure, choose idea.
+
+    Return JSON ONLY:
+
+    {
+    "agent":"planning | research | github | status | idea | end",
+    "reason":"why"
+    }
+    """
 
         messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
 
         response = self.llm.invoke(messages)
 
         return {"messages": state["messages"] + [response]}
-
 
 # ---------------------------------------------------
 # Routing Logic
@@ -143,6 +253,7 @@ Return JSON ONLY:
         "research",
         "github",
         "status",
+        "idea",
         "end"
     ]:
 
@@ -168,6 +279,9 @@ Return JSON ONLY:
         if "status" in decision:
             return "status"
 
+        if "idea" in decision:
+            return "idea"
+        
         return "end"
 
 
@@ -321,6 +435,27 @@ Return JSON ONLY:
     def status_agent(self, state: AgentState):
 
         result = get_project_status_tool.invoke({})
+
+        return {"messages": [AIMessage(content=result)]}
+    
+
+# ---------------------------------------------------
+# Idea Agent
+# ---------------------------------------------------
+
+    def idea_agent(self, state: AgentState):
+
+        user_input = ""
+
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, HumanMessage):
+                user_input = msg.content
+                break
+
+        result = idea_followup_tool.invoke({
+            "user_input": user_input,
+            "project_context": json.dumps(state.get("current_project", {}))
+        })
 
         return {"messages": [AIMessage(content=result)]}
 
