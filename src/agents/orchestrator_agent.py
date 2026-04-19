@@ -1,28 +1,23 @@
-# src/agentic_orchestrator.py
+# src/orchestrator_agent.py
 
 from typing import TypedDict, Annotated, Sequence, Literal
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-from src.tools.github_analyzer import run_github_analysis
+from src.agents.github_agent import run_github_analysis
 
 import json
 import re
-import os
 import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from src.database.mysql_db import MySQLDB
-from src.memory.demo_memory import DemoMemory
+from src.memory.memory import Memory
 
-from src.tools.agent_tools import (
-    generate_project_plan_tool,
-    link_github_repository_tool,
-    get_project_status_tool
-)
+from src.agents.planner_agent import generate_project_plan_tool
+
 
 from src.core.llm import get_llm
 from src.agents.idea_agent import idea_followup_tool
@@ -50,14 +45,10 @@ class AgenticOrchestrator:
 
     def __init__(self):
 
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GEMINI_KEY"),
-            temperature=0.3
-        )
+        self.llm = get_llm()
 
         self.db = MySQLDB()
-        self.memory = DemoMemory(self.db)
+        self.memory = Memory(self.db)
 
         self.current_project_id = None
         self.current_project = None
@@ -75,10 +66,9 @@ class AgenticOrchestrator:
         workflow = StateGraph(AgentState)
 
         workflow.add_node("supervisor", self.supervisor_node)
-        workflow.add_node("planning_agent", self.planning_agent)
+        workflow.add_node("planner_agent", self.planner_agent)
         workflow.add_node("research_agent", self.research_agent)
         workflow.add_node("github_agent", self.github_agent)
-        workflow.add_node("status_agent", self.status_agent)
         workflow.add_node("idea_agent", self.idea_agent)
 
         workflow.set_entry_point("supervisor")
@@ -87,19 +77,17 @@ class AgenticOrchestrator:
             "supervisor",
             self.route_agent,
             {
-                "planning": "planning_agent",
+                "planning": "planner_agent",
                 "research": "research_agent",
                 "github": "github_agent",
-                "status": "status_agent",
                 "idea": "idea_agent",
                 "end": END
             }
         )
 
-        workflow.add_edge("planning_agent", END)
+        workflow.add_edge("planner_agent", END)
         workflow.add_edge("research_agent", END)
         workflow.add_edge("github_agent", END)
-        workflow.add_edge("status_agent", END)
         workflow.add_edge("idea_agent", END)
 
         return workflow.compile()
@@ -126,7 +114,7 @@ class AgenticOrchestrator:
         how_keywords = [
             "how to", "how do i", "how can i",
             "implement", "explain", "guide me",
-            "best way", "help me build",
+            "best way", "help me build","make system", "i want to build", "i want to create"
         ]
 
         followup_keywords = [
@@ -151,12 +139,6 @@ class AgenticOrchestrator:
             "recent papers", "academic papers"
         ]
 
-        status_keywords = [
-            "status", "progress",
-            "what is pending", "completed tasks",
-            "remaining tasks", "deadline",
-            "behind schedule", "project status"
-        ]
 
         # ---------- GitHub ----------
         if "github.com/" in user_input:
@@ -174,13 +156,6 @@ class AgenticOrchestrator:
                 ]
             }
 
-        # ---------- Status ----------
-        if any(k in user_input for k in status_keywords):
-            return {
-                "messages": state["messages"] + [
-                    AIMessage(content='{"agent":"status","reason":"status request"}')
-                ]
-            }
 
         # ---------- Planning ----------
         if any(k in user_input for k in planning_keywords):
@@ -222,8 +197,6 @@ class AgenticOrchestrator:
 
     github → repository/code/GitHub analysis
 
-    status → progress, pending work, deadlines
-
     idea → implementation help, summaries, explanations,
     follow-up questions, refinements, comparisons
 
@@ -233,7 +206,7 @@ class AgenticOrchestrator:
     Return JSON ONLY:
 
     {
-    "agent":"planning | research | github | status | idea | end",
+    "agent":"planning | research | github | idea | end",
     "reason":"why"
     }
     """
@@ -252,7 +225,6 @@ class AgenticOrchestrator:
         "planning",
         "research",
         "github",
-        "status",
         "idea",
         "end"
     ]:
@@ -276,9 +248,6 @@ class AgenticOrchestrator:
         if "github" in decision:
             return "github"
 
-        if "status" in decision:
-            return "status"
-
         if "idea" in decision:
             return "idea"
         
@@ -286,10 +255,10 @@ class AgenticOrchestrator:
 
 
 # ---------------------------------------------------
-# Planning Agent
+# Planner Agent
 # ---------------------------------------------------
 
-    def planning_agent(self, state: AgentState):
+    def planner_agent(self, state: AgentState):
 
         conversation = "\n".join([m.content for m in state["messages"]])
 
@@ -427,16 +396,6 @@ class AgenticOrchestrator:
         return {"messages": [AIMessage(content=response)]}
         
 
-
-# ---------------------------------------------------
-# Status Agent
-# ---------------------------------------------------
-
-    def status_agent(self, state: AgentState):
-
-        result = get_project_status_tool.invoke({})
-
-        return {"messages": [AIMessage(content=result)]}
     
 
 # ---------------------------------------------------

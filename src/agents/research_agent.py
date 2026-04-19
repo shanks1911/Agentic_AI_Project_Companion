@@ -174,8 +174,8 @@ REASON: [brief reason]
         if not papers:
             return "No papers found for literature review."
         
-        # Use top 5 most relevant papers
-        top_papers = papers[:5]
+        # Use top 10 most relevant papers
+        top_papers = papers[:10]
         
         paper_details = []
         for idx, paper in enumerate(top_papers):

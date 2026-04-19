@@ -1,3 +1,3 @@
-from .demo_memory import DemoMemory
+from .memory import Memory
 
-__all__ = ['DemoMemory']
+__all__ = ['Memory']

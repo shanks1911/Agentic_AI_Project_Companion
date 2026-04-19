@@ -4,7 +4,7 @@ Run: streamlit run streamlit_agentic_demo.py
 """
 import streamlit as st
 from dotenv import load_dotenv
-from src.agentic_orchestrator import AgenticOrchestrator
+from src.agents.orchestrator_agent import AgenticOrchestrator
 from datetime import datetime
 import plotly.express as px
 import pandas as pd
@@ -130,8 +130,7 @@ if 'app' not in st.session_state:
     st.session_state.pending_message = None 
 
 # Header
-st.markdown('<div class="main-header">🤖 AI Project Assistant</div>', unsafe_allow_html=True)
-st.markdown('<div class="agentic-badge">✨ AGENTIC MODE - Agent decides which tools to use</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">🤖 Agentic AI Project Companion</div>', unsafe_allow_html=True)
 
 # Sidebar
 with st.sidebar:
@@ -311,30 +310,20 @@ with tab1:
         st.rerun()
     
     # Quick actions
-    st.divider()
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if st.button("📊 Status", use_container_width=True):
-            st.session_state.pending_message = 'Show me the current project status'
-            st.rerun()
-    
-    with col2:
-        if st.button("🔍 Search Similar", use_container_width=True):
-            st.session_state.pending_message = 'Search for similar projects'
-            st.rerun()
-    
-    with col3:
-        if st.button("📝 Generate Plan", use_container_width=True):
-            st.session_state.pending_message = 'Generate a detailed project plan based on our conversation'
-            st.rerun()
-    
-    with col4:
-        if st.button("🔄 Clear", use_container_width=True):
-            st.session_state.chat_history = []
-            st.session_state.tool_logs = []
-            st.rerun()
+st.divider()
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("📝 Generate Plan", use_container_width=True):
+        st.session_state.pending_message = 'Generate a detailed project plan based on our conversation'
+        st.rerun()
+
+with col2:
+    if st.button("🔄 Clear", use_container_width=True):
+        st.session_state.chat_history = []
+        st.session_state.tool_logs = []
+        st.rerun()
 
 from datetime import datetime
 
@@ -441,7 +430,7 @@ with tab2:
                 st.success(f"✅ Timeline updated → Deadline: {deadline_str}")
 
         # 🔥 SUB-TABS
-        subtab1, subtab2, subtab3 = st.tabs(["📝 To-Do List", "📊 Gantt", "🧱 Kanban"])
+        subtab1, subtab2, subtab3, subtab4 = st.tabs(["📝 To-Do List", "📊 Gantt", "🧱 Kanban", "🔄 Sequence Diagram"])
 
         # ---------------- TODO LIST ----------------
         with subtab1:
@@ -553,7 +542,16 @@ with tab2:
 
             with col3:
                 render_column("✅ Completed", done, "#28a745")
+        # ---------------- SYSTEM ARCHITECTURE ----------------
+        with subtab4:
+            st.subheader("🔄 Sequence Diagram")
 
+            diagram = project.get("sequence_diagram")
+
+            if diagram:
+                st.code(diagram, language="text")
+            else:
+                st.info("Generate plan first to create sequence diagram.")
     else:
         st.info("No active project. Start a conversation first.")
         

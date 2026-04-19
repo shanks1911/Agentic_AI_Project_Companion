@@ -12,7 +12,7 @@ from src.core.llm import get_llm
 llm = get_llm()
 
 
-class DemoMemory:
+class Memory:
     """
     Memory manager for the agent.
 
