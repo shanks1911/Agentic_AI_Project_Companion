@@ -1,3 +1,4 @@
+#github_agent.py
 from typing import TypedDict, List, Dict
 import os
 import base64
@@ -6,7 +7,7 @@ from github import Auth, Github, GithubException
 from langgraph.graph import StateGraph, END
 
 # --- Memory ---
-from src.database.chroma_store import ChromaMemory
+from src.database.mongo_vector_store import MongoVectorMemory
 
 # --- LLM (centralized) ---
 from src.core.llm import get_llm
@@ -29,7 +30,7 @@ auth = Auth.Token(github_token)
 g = Github(auth=auth)
 
 # ✅ Central vector memory
-memory = ChromaMemory()
+memory = MongoVectorMemory()
 
 
 # --- 2. STATE ---

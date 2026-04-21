@@ -1,11 +1,11 @@
-
+#memory.py
 from langchain_core.messages import HumanMessage
 import os
 import uuid
 from datetime import datetime
 
 from src.database.mongo_memory import MongoMemory
-from src.database.chroma_store import ChromaMemory
+from src.database.mongo_vector_store import MongoVectorMemory
 from src.core.llm import get_llm
 
 
@@ -28,7 +28,7 @@ class Memory:
         self.mongo = MongoMemory()
 
         # Vector memory
-        self.vector = ChromaMemory()
+        self.vector = MongoVectorMemory()
 
         # LLM for summarization
         self.llm = llm
@@ -41,23 +41,34 @@ class Memory:
         # Build conversation string
         conversation = "\n".join([
             f"{'User' if i % 2 == 0 else 'AI'}: {msg.content}"
-            for i, msg in enumerate(messages)
+            for i, msg in enumerate(messages[-2:])   # latest turn only
         ])
 
-        # Generate summary
-        summary_prompt = f"""
-        Summarize this conversation.
+        old_context = self.load_context(project_id)
 
-        Preserve important information:
+        summary_prompt = f"""
+        You maintain long-term memory for an AI project assistant.
+
+        Previous Memory:
+        {old_context}
+
+        New Conversation:
+        {conversation}
+
+        Create an UPDATED concise memory summary.
+
+        Preserve:
 
         - project idea
+        - target users
         - chosen tech stack
-        - decisions made
-        - new features added
-        - modifications to project plan
+        - important decisions
+        - added/removed features
+        - latest progress
+        - tasks/plans discussed
 
-        Conversation:
-        {conversation}
+        Remove repetition.
+        Keep useful context only.
         """
 
         summary = self.llm.invoke(
@@ -113,7 +124,10 @@ class Memory:
         """
 
         try:
-            results = self.vector.search(query, project_id)
+            results = self.vector.search(
+                f"{query} project idea startup app current project",
+                project_id
+            )
 
             context = ""
 

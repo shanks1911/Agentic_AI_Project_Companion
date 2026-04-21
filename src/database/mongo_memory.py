@@ -15,8 +15,26 @@ class MongoMemory:
 
     def save_session(self, data):
 
-        self.sessions.insert_one(data)
-
+        self.sessions.update_one(
+            {
+                "project_id": data["project_id"],
+                "active": True
+            },
+            {
+                "$set": {
+                    "timestamp": data["timestamp"],
+                    "summary": data["summary"],
+                    "decisions": data["decisions"],
+                    "transcript": data["transcript"],
+                    "active": True
+                },
+                "$setOnInsert": {
+                    "id": data["id"],
+                    "project_id": data["project_id"]
+                }
+            },
+            upsert=True
+        )
     def get_sessions(self, project_id):
 
         return list(

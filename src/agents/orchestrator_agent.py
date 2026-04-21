@@ -8,12 +8,13 @@ from src.agents.github_agent import run_github_analysis
 
 import json
 import re
+from datetime import datetime
 import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.database.mysql_db import MySQLDB
+from src.database.mongo_db import MongoDB
 from src.memory.memory import Memory
 
 from src.agents.planner_agent import generate_project_plan_tool
@@ -47,7 +48,7 @@ class AgenticOrchestrator:
 
         self.llm = get_llm()
 
-        self.db = MySQLDB()
+        self.db = MongoDB()
         self.memory = Memory(self.db)
 
         self.current_project_id = None
@@ -411,9 +412,23 @@ class AgenticOrchestrator:
                 user_input = msg.content
                 break
 
+        # ✅ Better fallback context from memory
+        project_context = state.get("current_project", {}) or {}
+
+        if not project_context:
+            memory_context = self.memory.retrieve_semantic_memory(
+                "project idea current project startup idea",
+                state["project_id"]
+            )
+
+            if memory_context:
+                project_context = {
+                    "memory_context": memory_context
+                }
+
         result = idea_followup_tool.invoke({
             "user_input": user_input,
-            "project_context": json.dumps(state.get("current_project", {}))
+            "project_context": json.dumps(project_context)
         })
 
         return {"messages": [AIMessage(content=result)]}
@@ -425,16 +440,32 @@ class AgenticOrchestrator:
 
     def start_session(self, project_id=None):
 
+
+
         if project_id:
             self.current_project_id = project_id
             self.current_project = self.db.get_project(project_id)
 
             context = self.memory.load_context(project_id)
             print("\nMemory Loaded:\n", context)
+            return
 
-        else:
-            self.current_project_id = str(uuid.uuid4())
-            self.current_project = None
+        # ✅ Create project immediately
+        new_id = str(uuid.uuid4())
+
+        project = {
+            "id": new_id,
+            "title": "Untitled Project",
+            "description": "New project session",
+            "tasks": [],
+            "created_at": datetime.now().isoformat(),
+            "last_modified": datetime.now().isoformat()
+        }
+
+        self.db.save_project(project)
+
+        self.current_project_id = new_id
+        self.current_project = project
 
 
 # ---------------------------------------------------
@@ -504,8 +535,29 @@ class AgenticOrchestrator:
             "content": content
         })
 
+        # Auto rename first untitled project
+        if self.current_project and self.current_project["title"] == "Untitled Project":
+            self.current_project["title"] = user_input[:50]
+            self.current_project["description"] = user_input
+            self.db.save_project(self.current_project)
+
         if len(self.messages_history) > 20:
             self.messages_history = self.messages_history[-20:]
+
+        # ✅ LIVE MEMORY UPDATE AFTER EACH CHAT TURN
+        try:
+            latest_messages = [
+                HumanMessage(content=user_input),
+                AIMessage(content=content)
+            ]
+
+            self.memory.save_session(
+                self.current_project_id,
+                latest_messages
+            )
+
+        except Exception as e:
+            print("Live memory update error:", e)
 
         return content
 
@@ -532,4 +584,15 @@ class AgenticOrchestrator:
         session = self.memory.save_session(
             self.current_project_id,
             messages
+        )
+
+        # ✅ Mark rolling session closed
+        self.memory.mongo.sessions.update_many(
+            {
+                "project_id": self.current_project_id,
+                "active": True
+            },
+            {
+                "$set": {"active": False}
+            }
         )
