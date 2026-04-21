@@ -407,15 +407,24 @@ with tab2:
                 if n > 0:
                     for i, t in enumerate(ordered_tasks):
 
+                        # spread starts across deadline window
                         start_offset = int((i * total_days) / n)
-                        end_offset = int(((i + 1) * total_days) / n)
+
+                        # each task gets duration
+                        duration = max(2, total_days // max(3, n // 2))
+
+                        end_offset = min(total_days, start_offset + duration)
 
                         start_dt = today + timedelta(days=start_offset)
                         end_dt = today + timedelta(days=end_offset)
 
-                        # Ensure last task ends EXACTLY on deadline
+                        # ensure final task ends exactly on deadline
                         if i == n - 1:
                             end_dt = datetime.combine(deadline, datetime.min.time())
+
+                        # prevent zero duration
+                        if end_dt <= start_dt:
+                            end_dt = start_dt + timedelta(days=1)
 
                         t["start_date"] = start_dt.strftime("%Y-%m-%d")
                         t["end_date"] = end_dt.strftime("%Y-%m-%d")
@@ -462,27 +471,46 @@ with tab2:
 
             gantt_data = []
 
-            for t in tasks:
-                gantt_data.append({
-                    "Task": t["title"],
-                    "Start": t["start_date"],
-                    "Finish": t["end_date"],
-                    "Status": t["status"]
-                })
+            for i, t in enumerate(tasks):
+                if t.get("title") and t.get("start_date") and t.get("end_date"):
 
-            df = pd.DataFrame(gantt_data)
+                    gantt_data.append({
+                        "Task": f"{i+1}. {t['title']}",
+                        "Start": pd.to_datetime(t["start_date"]),
+                        "Finish": pd.to_datetime(t["end_date"]),
+                        "Status": t["status"]
+                    })
 
-            fig = px.timeline(
-                df,
-                x_start="Start",
-                x_end="Finish",
-                y="Task",
-                color="Status"
-            )
+            if gantt_data:
 
-            fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, use_container_width=True)
+                df = pd.DataFrame(gantt_data)
 
+                fig = px.timeline(
+                    df,
+                    x_start="Start",
+                    x_end="Finish",
+                    y="Task",
+                    color="Status"
+                )
+
+                fig.update_yaxes(
+                    autorange="reversed",
+                    automargin=True
+                )
+
+                fig.update_traces(
+                    width=0.55
+                )
+
+                fig.update_layout(
+                    height=max(600, len(df) * 55),
+                    bargap=0.25
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+            else:
+                st.info("No timeline available yet.")
         # ---------------- KANBAN ----------------
         with subtab3:
             st.subheader("🧱 Kanban Board")
