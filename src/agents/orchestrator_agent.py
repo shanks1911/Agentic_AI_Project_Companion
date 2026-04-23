@@ -1,5 +1,25 @@
 # src/orchestrator_agent.py
+"""
+Central multi-agent orchestrator for the Agentic AI Project Assistant.
 
+This module coordinates specialized agents through a LangGraph workflow and
+serves as the main intelligence layer of the system. It evaluates user intent,
+loads relevant memory, and routes each request to the most suitable agent.
+
+Integrated agents:
+- Planner Agent: generates project plans, tasks, timelines, and diagrams
+- Research Agent: finds papers and creates literature reviews
+- GitHub Agent: analyzes repositories and codebases
+- Idea Agent: handles follow-up requests, summaries, refinements, and guidance
+
+Core responsibilities:
+- Maintain active project session state
+- Inject historical and semantic memory into prompts
+- Route requests using rules + LLM fallback supervision
+- Persist project data and conversations
+- Manage session lifecycle (start, chat, end)
+- Provide a single backend interface for the frontend UI
+"""
 from typing import TypedDict, Annotated, Sequence, Literal
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langgraph.graph import StateGraph, END
@@ -33,6 +53,14 @@ from src.agents.research_agent import (
 # ---------------------------------------------------
 
 class AgentState(TypedDict):
+    """
+    Shared LangGraph state passed between orchestrator nodes.
+
+    Attributes:
+        messages: Conversation messages exchanged in current run.
+        project_id: Active project identifier.
+        current_project: Current project metadata and saved state.
+    """
     messages: Annotated[Sequence[BaseMessage], add_messages]
     project_id: str
     current_project: dict
@@ -43,7 +71,10 @@ class AgentState(TypedDict):
 # ---------------------------------------------------
 
 class AgenticOrchestrator:
-
+    """
+    Main controller that manages agent routing, memory, persistence,
+    and user conversation flow.
+    """
     def __init__(self):
 
         self.llm = get_llm()
@@ -63,7 +94,12 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def _build_graph(self):
+        """
+        Construct and compile the LangGraph workflow.
 
+        Returns:
+            Compiled graph application with supervisor routing.
+        """
         workflow = StateGraph(AgentState)
 
         workflow.add_node("supervisor", self.supervisor_node)
@@ -99,7 +135,19 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def supervisor_node(self, state: AgentState):
+        """
+        Inspect the latest user message and decide which specialist
+        agent should handle the request.
 
+        Uses deterministic keyword routing first, then falls back to
+        an LLM supervisor when intent is ambiguous.
+
+        Args:
+            state: Current workflow state.
+
+        Returns:
+            Updated state containing routing decision message.
+        """
         user_input = ""
 
         # Get latest real user message
@@ -230,7 +278,15 @@ class AgenticOrchestrator:
         "end"
     ]:
 
-        
+        """
+        Convert supervisor decision output into graph route labels.
+
+        Args:
+            state: Current workflow state.
+
+        Returns:
+            Next node name.
+        """
 
         decision_text = state["messages"][-1].content
 
@@ -260,7 +316,16 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def planner_agent(self, state: AgentState):
+        """
+        Generate a structured project plan from conversation context
+        and persist the resulting project data.
 
+        Args:
+            state: Current workflow state.
+
+        Returns:
+            AI response containing generated plan JSON.
+        """
         conversation = "\n".join([m.content for m in state["messages"]])
 
         project_context = state["current_project"]
@@ -297,7 +362,16 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def research_agent(self, state: AgentState):
+        """
+        Build a research query from user intent and generate a
+        literature review using the research tools.
 
+        Args:
+            state: Current workflow state.
+
+        Returns:
+            AI response containing research output.
+        """
         raw_input = state["messages"][0].content.lower()
 
         # Extract meaningful keywords
@@ -334,7 +408,16 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def github_agent(self, state: AgentState):
+        """
+        Detect a GitHub repository URL from user input, run repository
+        analysis, and return a summarized report.
 
+        Args:
+            state: Current workflow state.
+
+        Returns:
+            AI response with repository insights or error message.
+        """
         # ✅ 1. Extract LAST HUMAN MESSAGE (CRITICAL FIX)
         user_input = None
         for msg in reversed(state["messages"]):
@@ -404,7 +487,16 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def idea_agent(self, state: AgentState):
+        """
+        Handle conversational follow-up requests such as summaries,
+        refinements, implementation help, and comparisons.
 
+        Args:
+            state: Current workflow state.
+
+        Returns:
+            AI response generated by idea follow-up tool.
+        """
         user_input = ""
 
         for msg in reversed(state["messages"]):
@@ -439,7 +531,12 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def start_session(self, project_id=None):
+        """
+        Start a new project session or load an existing one.
 
+        Args:
+            project_id: Existing project ID to resume.
+        """
 
 
         if project_id:
@@ -473,6 +570,18 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def chat(self, user_input: str):
+        """
+        Main conversation entry point used by the frontend.
+
+        Loads memory context, invokes the graph workflow, updates
+        rolling memory, and returns the final response.
+
+        Args:
+            user_input: Latest user message.
+
+        Returns:
+            Assistant response string.
+        """
         print("USER INPUT:", user_input)
 
         self.messages_history.append({
@@ -567,7 +676,10 @@ class AgenticOrchestrator:
 # ---------------------------------------------------
 
     def end_session(self):
-
+        """
+        Persist the final conversation history and close active
+        rolling sessions for the current project.
+        """
         if not self.messages_history:
             return
 

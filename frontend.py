@@ -1,6 +1,25 @@
 """
-Streamlit UI for Agentic AI Project Assistant
-Run: streamlit run streamlit_agentic_demo.py
+Streamlit frontend for the Agentic AI Project Assistant.
+
+This file provides the interactive user interface for creating projects,
+chatting with the orchestrator, managing tasks, generating research output,
+and linking GitHub repositories. It acts as the presentation layer for all
+backend agent capabilities.
+
+Main interface sections:
+- Chat workspace for conversational assistance
+- Task dashboard with To-Do, Kanban, Gantt, and sequence diagram views
+- Research workspace for paper search and literature reviews
+- GitHub integration for repository analysis
+- Sidebar project/session management
+
+Core responsibilities:
+- Render project data and agent responses
+- Maintain Streamlit session state
+- Trigger backend orchestrator actions
+- Visualize plans, timelines, and tasks
+- Provide quick actions for common workflows
+- Manage active sessions across reruns
 """
 import streamlit as st
 from dotenv import load_dotenv

@@ -1,5 +1,18 @@
 """
-Research Paper Agent - Searches academic papers and generates literature reviews
+Academic research agent for discovering papers and generating evidence-based
+literature reviews for user projects.
+
+This module connects external scholarly sources such as ArXiv and Semantic
+Scholar, retrieves relevant papers, ranks them against the user's project
+context, and uses the shared LLM to synthesize actionable research insights.
+
+Main responsibilities:
+- Search academic papers by topic or keywords
+- Merge and deduplicate results from multiple sources
+- Rank papers by project relevance
+- Generate structured literature reviews with inline citations
+- Produce formatted references (APA / IEEE / MLA)
+- Expose LangChain tools for orchestrator use
 """
 from wsgiref import headers
 
@@ -284,13 +297,6 @@ def search_research_papers_tool(query: str, max_results: int = 10) -> str:
     """
     Search academic papers from ArXiv and Semantic Scholar.
     Use this to find related research for literature reviews.
-    
-    Args:
-        query: Search query (keywords about the research topic)
-        max_results: Maximum number of papers to return (default 10)
-    
-    Returns:
-        List of relevant academic papers with titles, authors, and summaries
     """
     query = re.sub(r'```.*?```', '', query, flags=re.DOTALL).strip()
     print("🔧 Agent is using tool: search_research_papers_tool")
@@ -352,13 +358,6 @@ def generate_literature_review_tool(query: str, project_description: str) -> str
     """
     Generate a comprehensive literature review based on research papers.
     Use this to create the literature review section of a research paper.
-    
-    Args:
-        query: Search query for papers
-        project_description: Description of your project/research
-    
-    Returns:
-        Formatted literature review with citations
     """
     print("🔧 Agent is using tool: generate_literature_review_tool")
     agent = get_research_agent()

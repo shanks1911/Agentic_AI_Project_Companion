@@ -1,4 +1,9 @@
-#mongo_vector_store.py
+"""
+Vector memory layer backed by MongoDB Atlas vector search.
+
+Used for semantic retrieval of prior project conversations,
+summaries, and code analysis data.
+"""
 import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -9,8 +14,11 @@ load_dotenv()
 
 
 class MongoVectorMemory:
-
+    """
+    Embedding-based memory store.
+    """
     def __init__(self):
+        """Initialize MongoDB collection and embedding model."""
         self.client = MongoClient(os.getenv("MONGO_URI"))
         self.db = self.client["agent_memory"]
         self.collection = self.db["vector_memory"]
@@ -21,7 +29,13 @@ class MongoVectorMemory:
         )
 
     def add_memory(self, text, metadata):
+        """
+        Store embedded text memory.
 
+        Args:
+            text: Source content to embed.
+            metadata: Extra searchable metadata.
+        """
         vector = self.embedding.embed_query(text)
 
         self.collection.update_one(
@@ -40,7 +54,16 @@ class MongoVectorMemory:
         )
 
     def search(self, query, project_id=None):
+        """
+        Run semantic similarity search.
 
+        Args:
+            query: User search text.
+            project_id: Optional project filter.
+
+        Returns:
+            List of LangChain Document objects.
+        """
         query_vector = self.embedding.embed_query(query)
 
         pipeline = [

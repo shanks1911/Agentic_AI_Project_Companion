@@ -1,4 +1,12 @@
-#memory.py
+"""
+Unified memory manager combining:
+
+1. MongoDB session history
+2. Vector semantic memory
+3. LLM-generated rolling summaries
+
+Used by the orchestrator to provide long-term context.
+"""
 from langchain_core.messages import HumanMessage
 import os
 import uuid
@@ -14,11 +22,7 @@ llm = get_llm()
 
 class Memory:
     """
-    Memory manager for the agent.
-
-    Responsibilities:
-    MongoDB  → store full conversation sessions
-    ChromaDB → store semantic summaries for retrieval
+    Main memory orchestration layer.
     """
 
     def __init__(self, db):
@@ -35,7 +39,7 @@ class Memory:
 
     def save_session(self, project_id: str, messages: list):
         """
-        Save session memory after a conversation ends
+        Save latest conversation turn and refresh memory summary.
         """
 
         # Build conversation string
@@ -120,7 +124,7 @@ class Memory:
 
     def retrieve_semantic_memory(self, query: str, project_id: str) -> str:
         """
-        Retrieve relevant past memory using vector search
+        Return semantically relevant historical context.
         """
 
         try:
@@ -141,7 +145,7 @@ class Memory:
 
     def load_context(self, project_id: str) -> str:
         """
-        Load recent memory context for the project
+        Return recent summaries for prompt injection.
         """
 
         sessions = self.mongo.get_sessions(project_id)

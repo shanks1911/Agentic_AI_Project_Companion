@@ -1,4 +1,20 @@
-#github_agent.py
+# github_agent.py
+
+"""
+GitHub repository analysis agent.
+
+This module inspects a public/private GitHub repository using the GitHub API,
+extracts supported source files, summarizes the project with an LLM, and stores
+file-level understanding in vector memory for later retrieval.
+
+Main responsibilities:
+- Validate and parse GitHub repository URLs
+- Recursively fetch repository files
+- Analyze architecture / tech stack / purpose
+- Generate file summaries
+- Store knowledge in semantic memory
+"""
+
 from typing import TypedDict, List, Dict
 import os
 import base64
@@ -6,17 +22,20 @@ from dotenv import load_dotenv
 from github import Auth, Github, GithubException
 from langgraph.graph import StateGraph, END
 
-# --- Memory ---
+# Semantic memory backend.
 from src.database.mongo_vector_store import MongoVectorMemory
 
-# --- LLM (centralized) ---
+# Shared LLM factory.
 from src.core.llm import get_llm
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
 
-# --- 1. SETUP ---
+# -------------------------------------------------------------------
+# Configuration / Setup
+# -------------------------------------------------------------------
+
 load_dotenv()
 
 github_token = os.getenv("GITHUB_TOKEN")
@@ -24,17 +43,25 @@ github_token = os.getenv("GITHUB_TOKEN")
 if not github_token:
     raise ValueError("GITHUB_TOKEN not set in .env file")
 
+# Shared language model.
 llm = get_llm()
 
+# Authenticated GitHub client.
 auth = Auth.Token(github_token)
 g = Github(auth=auth)
 
-# ✅ Central vector memory
+# Shared vector memory instance.
 memory = MongoVectorMemory()
 
 
-# --- 2. STATE ---
+# -------------------------------------------------------------------
+# Graph State Definition
+# -------------------------------------------------------------------
+
 class GraphState(TypedDict):
+    """
+    Shared state passed between LangGraph nodes.
+    """
     repo_url: str
     repo_contents: List[Dict]
     documents: List[Document]
@@ -42,10 +69,23 @@ class GraphState(TypedDict):
     error: str
 
 
-# --- 3. NODES ---
+# -------------------------------------------------------------------
+# Node 1: Fetch Repository Files
+# -------------------------------------------------------------------
 
 def fetch_repo_contents(state: GraphState) -> GraphState:
-    """Fetch repository files"""
+    """
+    Read repository contents recursively and collect supported files.
+
+    Only lightweight code/documentation files are processed to keep
+    analysis efficient.
+
+    Args:
+        state: Current graph state.
+
+    Returns:
+        Updated graph state containing repo_contents or error.
+    """
 
     print("--- 🔎 Fetching Repository Contents ---")
 
@@ -53,9 +93,9 @@ def fetch_repo_contents(state: GraphState) -> GraphState:
         from urllib.parse import urlparse
 
         repo_url = state["repo_url"]
-
         parsed = urlparse(repo_url)
 
+        # Ensure user provided a GitHub URL.
         if parsed.netloc != "github.com":
             return {**state, "error": "Invalid GitHub URL"}
 
@@ -72,6 +112,7 @@ def fetch_repo_contents(state: GraphState) -> GraphState:
         repo_data = []
         files_to_process = []
 
+        # Breadth-first traversal of repository tree.
         while contents:
             file_content = contents.pop(0)
 
@@ -80,7 +121,11 @@ def fetch_repo_contents(state: GraphState) -> GraphState:
             else:
                 if (
                     file_content.path.endswith(
-                        ('.py', '.js', '.ts', '.md', 'Dockerfile', '.yml', '.yaml', '.java', '.go', '.rs')
+                        (
+                            '.py', '.js', '.ts', '.md',
+                            'Dockerfile', '.yml', '.yaml',
+                            '.java', '.go', '.rs'
+                        )
                     )
                     and file_content.size > 0
                     and file_content.size < 100000
@@ -89,14 +134,17 @@ def fetch_repo_contents(state: GraphState) -> GraphState:
 
         print(f"Found {len(files_to_process)} files")
 
+        # Decode file contents.
         for file in files_to_process:
             try:
                 content = base64.b64decode(file.content).decode("utf-8")
+
                 repo_data.append({
                     "path": file.path,
                     "content": content
                 })
             except Exception:
+                # Skip binary/unreadable files.
                 continue
 
         return {**state, "repo_contents": repo_data}
@@ -108,20 +156,33 @@ def fetch_repo_contents(state: GraphState) -> GraphState:
         return {**state, "error": str(e)}
 
 
+# -------------------------------------------------------------------
+# Node 2: Analyze Repository
+# -------------------------------------------------------------------
+
 def analyze_and_summarize(state: GraphState) -> GraphState:
-    """Analyze repository with LLM"""
+    """
+    Use LLM to generate project-level and file-level summaries.
+
+    Args:
+        state: Current graph state with repo_contents.
+
+    Returns:
+        Updated state containing project_summary and documents.
+    """
 
     print("--- 🤖 Analyzing Code ---")
 
     if not state.get("repo_contents"):
         return {**state, "error": "No content found"}
 
+    # Combine repository snippets for high-level understanding.
     full_context = "\n\n".join([
         f"File: {f['path']}\n{f['content'][:3000]}"
         for f in state["repo_contents"]
     ])
 
-    # Project-level summary
+    # Overall repository summary prompt.
     summary_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a senior software architect."),
         ("human", """
@@ -140,7 +201,7 @@ def analyze_and_summarize(state: GraphState) -> GraphState:
         "context": full_context
     }).content
 
-    # File-level analysis
+    # File-specific analysis prompt.
     file_prompt = ChatPromptTemplate.from_messages([
         ("system", "You analyze code files."),
         ("human", """
@@ -167,10 +228,9 @@ def analyze_and_summarize(state: GraphState) -> GraphState:
 
             documents.append(Document(
                 page_content=file_summary,
-                metadata={
-                    "source": f["path"]
-                }
+                metadata={"source": f["path"]}
             ))
+
         except Exception:
             continue
 
@@ -181,8 +241,20 @@ def analyze_and_summarize(state: GraphState) -> GraphState:
     }
 
 
+# -------------------------------------------------------------------
+# Node 3: Store in Vector Memory
+# -------------------------------------------------------------------
+
 def store_in_chroma(state: GraphState) -> GraphState:
-    """Store into central vector memory"""
+    """
+    Store generated file summaries in vector memory.
+
+    Args:
+        state: Graph state containing analyzed documents.
+
+    Returns:
+        Unchanged state after persistence.
+    """
 
     print("--- 💾 Storing in Vector Memory ---")
 
@@ -209,7 +281,10 @@ def store_in_chroma(state: GraphState) -> GraphState:
     return state
 
 
-# --- 4. GRAPH ---
+# -------------------------------------------------------------------
+# Build LangGraph Workflow
+# -------------------------------------------------------------------
+
 workflow = StateGraph(GraphState)
 
 workflow.add_node("fetch_repo_contents", fetch_repo_contents)
@@ -224,9 +299,20 @@ workflow.add_edge("store_in_chroma", END)
 app = workflow.compile()
 
 
-# --- 5. WRAPPER FOR ORCHESTRATOR ---
+# -------------------------------------------------------------------
+# Public Entry Point
+# -------------------------------------------------------------------
+
 def run_github_analysis(repo_url: str) -> Dict:
-    """Entry point for orchestrator"""
+    """
+    Execute complete GitHub analysis workflow.
+
+    Args:
+        repo_url: GitHub repository URL.
+
+    Returns:
+        Dictionary containing success flag and results.
+    """
 
     try:
         result = app.invoke({"repo_url": repo_url})

@@ -1,4 +1,16 @@
-#planner_agent.py
+"""
+Planning agent tool responsible for converting a project idea or
+conversation context into a structured execution plan.
+
+The generated output is valid JSON containing:
+- project title
+- description
+- sequence diagram
+- actionable tasks
+
+This module is used when the user's idea is clear enough to be broken
+down into milestones or implementation steps.
+"""
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
 import os
@@ -11,16 +23,15 @@ llm = get_llm()
 @tool
 def generate_project_plan_tool(conversation_context: str) -> str:
     """
-    Generate a structured project plan with tasks based on the user's idea.
-    Use this when the user's project idea is clear and ready to be turned into actionable tasks.
-    
+    Generate a structured project plan from discussion history.
+
     Args:
-        conversation_context: The full conversation history about the project idea
-    
+        conversation_context: Combined conversation text describing
+            the user's project idea, requirements, and preferences.
+
     Returns:
-        A JSON string containing the project plan with title, description, and tasks
-    """
-    
+        JSON string containing project metadata and task list.
+    """    
     print("🔧 Agent is using tool: generate_project_plan_tool")
     prompt = f"""
 Create a project plan as valid JSON.

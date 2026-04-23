@@ -9,15 +9,12 @@ langchain-chroma==0.1.4
 
 langgraph==0.2.34
 
-chromadb==0.5.23
-
 python-dotenv==1.0.1
 
 pydantic==2.9.2
 tenacity==8.5.0
 
 PyGithub==2.9.0
-mysql-connector-python==9.6.0
 pymongo==4.16.0
 
 plotly==6.6.0
