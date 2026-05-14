@@ -108,6 +108,7 @@ This Project is built around a sophisticated stateful agent system using LangGra
 | **Agent Framework** | LangGraph | State-based agent orchestration |
 | **LLM Provider** | Google Gemini | Natural language processing |
 | **Database** | MongoDB | Stores project details, sessions, contexts and similarity search |
+| **Frontend** | Streamlit | For UI Interface |
 | **Environment Config** | python-dotenv | Environment variable management |
 
 ## 🚀 Getting Started
@@ -123,32 +124,30 @@ This Project is built around a sophisticated stateful agent system using LangGra
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/careerforge.git
-   cd agentic
+   git clone https://github.com/shanks1911/Agentic_AI_Project_Companion.git
+   cd Agentic_AI_Project_Companion
    ```
 
 2. **Install dependencies**
    ```bash
-   poetry install
+   pip install -r requirements.txt
+   
    ```
 
 3. **Set up environment variables**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your Google AI API key
-   GEMINI_KEY=your_google_ai_api_key_here
-   ```
-
-4. **Activate the virtual environment**
-   ```bash
-   poetry shell
+   GEMINI_KEY=your_gemini_api_key_here
+   GITHUB_TOKEN=your_github_token_here
+   GEMINI_MODEL=gemini-2.5-pro
+   MONGO_URI=your_mongoDB-URI_here
+   
    ```
 
 ### Usage
 
 Start the interactive session:
 ```bash
-python -m src.main_agent
+python run frontend.py
 ```
 
 
@@ -157,7 +156,7 @@ python -m src.main_agent
 
 ### Environment Variables
 ```bash
-GEMINI_KEY=your_google_ai_api_key_here
+GEMINI_KEY=your_gemini_api_key_here
 MONGO_URI=your_mongodb_uri_here
 GITHUB_TOKEN=your_github_token_here
 ```
