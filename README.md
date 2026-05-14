@@ -7,6 +7,8 @@
 
 This is an advanced, conversational AI assistant designed to help users plan, manage, and execute their professional and personal projects. It leverages a hierarchical, stateful agentic system built with LangGraph and powered by Google's Gemini models to provide an interactive and intelligent project management experience.
 
+## Demo Video downloadable as DemoVideo.mp4
+
 # ✨ Key Features
 
 ## 🧠 Multi-Agent Architecture
@@ -47,6 +49,7 @@ Specialized AI agents work collaboratively:
 - Enables future GitHub integration capabilities
 
 ---
+
 
 # 💬 Conversational AI Experience
 
@@ -92,17 +95,8 @@ Modify projects through simple conversation:
 
 This Project is built around a sophisticated stateful agent system using LangGraph:
 
-```mermaid
-graph TD
-    A[User Input] --> B[Agent Node]
-    B --> C{Router}
-    C -->|Tool Call| D[Tool Node]
-    C -->|No Tool| E[End/Continue]
-    D --> F[Update State]
-    F --> B
-    E --> G[User Response]
-    G --> B
-```
+<img width="599" height="329" alt="Architecture Diagram drawio" src="https://github.com/user-attachments/assets/e150ff6e-a746-41f9-b9e3-c5ba845c5d52" />
+
 
 
 ## 💻 Tech Stack
