@@ -1,39 +1,96 @@
-# CareerForge: AI-Powered Project & Career Co-Pilot
+# Agentic AI Project Companionship: A Multi-Agent Adaptive Framework for Cognitive Collaboration in Project Management
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Poetry](https://img.shields.io/badge/dependency%20manager-poetry-blue)](https://python-poetry.org/)
 [![LangGraph](https://img.shields.io/badge/framework-LangGraph-green)](https://langchain-ai.github.io/langgraph/)
 [![Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-orange)](https://ai.google.dev/)
 
-CareerForge is an advanced, conversational AI assistant designed to help users plan, manage, and execute their professional and personal projects. It leverages a hierarchical, stateful agentic system built with LangGraph and powered by Google's Gemini models to provide an interactive and intelligent project management experience.
+This is an advanced, conversational AI assistant designed to help users plan, manage, and execute their professional and personal projects. It leverages a hierarchical, stateful agentic system built with LangGraph and powered by Google's Gemini models to provide an interactive and intelligent project management experience.
 
-## 🚀 Core Features
+# ✨ Key Features
 
-### 💬 **Conversational Idea Refinement**
-Engage in natural conversation to flesh out and clarify initial project ideas. The AI helps you think through requirements, constraints, and goals.
+## 🧠 Multi-Agent Architecture
 
-### 🗂️ **Structured Plan Generation**
-Automatically transform refined ideas into structured, actionable Kanban-style project plans with detailed tasks, descriptions, and statuses.
+CareerForge uses specialized AI agents working collaboratively:
 
-### ✏️ **Interactive Plan Modification**
-- Add new tasks to existing plans
-- Modify task descriptions and priorities
-- Remove or reorganize project components
-- All through natural conversation
+### 🎯 Orchestrator Agent
+- Coordinates the complete workflow
+- Routes user requests to specialized agents
+- Maintains global application state
+- Controls execution flow between agents
 
-### 💾 **Persistent State Management**
-- Save project plans to JSON files
-- Load and continue work on previous projects
-- Maintain conversation context throughout sessions
+### 💡 Idea Agent
+- Helps users refine vague project ideas
+- Generates feature suggestions and improvements
+- Clarifies requirements through conversation
+- Assists in brainstorming and ideation
 
-### 🔮 **Future Enhancements**
-- Web-powered insights with Google Cloud Vertex AI Search
-- Real-time career and skills advice
-- Integration with popular project management tools
+### 📋 Planner Agent
+- Converts refined ideas into structured execution plans
+- Generates Kanban-style task workflows
+- Generates realistic gantt-chart based on user given deadline
+- Generates a sequence diagram for the project
+- Creates milestones, priorities, and dependencies
+- Organizes projects into actionable steps
+
+### 🔍 Research Agent
+- Performs intelligent topic research
+- Collects contextual information for projects
+- Searches through arxiv and semantic scholar repositories
+- Enhances plans using external knowledge
+- Supports technical and career-related exploration
+
+### 🐙 GitHub Agent
+- Assists with repository-related workflows
+- Helps generate development-oriented structures
+- Supports code/project organization
+- Enables future GitHub integration capabilities
+
+---
+
+# 💬 Conversational AI Experience
+
+- Natural language interaction with persistent memory
+- Context-aware conversations across sessions using rolling summaries
+- Dynamic response generation using Gemini models
+- Continuous refinement of project plans through dialogue
+
+---
+
+# 📂 Intelligent Project Planning
+
+Generate detailed and structured project plans automatically:
+- Task breakdown generation
+- Priority assignment
+- Milestone creation
+- Workflow organization
+- Kanban-style project management
+
+---
+
+# ✏️ Interactive Plan Modification
+
+Modify projects through simple conversation:
+- Add new tasks
+- Edit task descriptions
+- Change priorities and statuses
+- Reorganize workflows
+- Expand existing plans dynamically
+
+---
+
+# 💾 Persistent Memory & State Management
+
+- Stateful conversation architecture using LangGraph
+- Save project plans as JSON files
+- Resume previous sessions seamlessly
+- Context preservation across workflows
+
+---
 
 ## 🛠️ Architecture Overview
 
-CareerForge is built around a sophisticated stateful agent system using LangGraph:
+This Project is built around a sophisticated stateful agent system using LangGraph:
 
 ```mermaid
 graph TD
@@ -46,124 +103,7 @@ graph TD
     E --> G[User Response]
     G --> B
 ```
-```mermaid
-graph TB
-    User[👤 User] --> L1[Level 1: Strategic Career Agent<br/>🎯 Main Orchestrator]
-    
-    L1 --> L2A[Level 2A: Project Subsystem]
-    L1 --> L2B[Level 2B: Project Subsystem]  
-    L1 --> L2C[Level 2C: Project Subsystem]
-    L1 --> L2D[Level 2D: ...]
-    
-    subgraph "Level 2: Tactical Milestone Agent Subsystem"
-        direction TB
-        
-        subgraph "Project Input"
-            UserQuery[📝 User Project Query<br/>'I want to build a weather app']
-        end
-        
-        UserQuery --> PlannerAgent
-        
-        subgraph "Core Agents"
-            PlannerAgent[🧠 General Chat Agent<br/>Gemini API]
-            ResearchAgent[🔬 Research Agent<br/>Web Search + Vector DB]
-            GitHubAgent[📊 GitHub Tracker Agent<br/>Repo Parser]
-        end
-        
-        subgraph "Planner Agent Tools"
-            PlanTool[🛠️ Plan Generator Tool<br/>JSON Format]
-            FileTool[📄 JSON File Creator Tool]
-            PlannerAgent --> PlanTool
-            PlannerAgent --> FileTool
-        end
-        
-        subgraph "Research Agent Features"
-            WebSearch[🌐 Web Paper Search]
-            PDFUpload[📑 PDF Upload & Processing]
-            VectorStore[🗄️ Vector Database Storage]
-            LitSurvey[📚 Literature Survey Generation]
-            
-            ResearchAgent --> WebSearch
-            ResearchAgent --> PDFUpload
-            WebSearch --> VectorStore
-            PDFUpload --> VectorStore
-            VectorStore --> LitSurvey
-        end
-        
-        subgraph "GitHub Agent Features"
-            RepoParser[⚙️ Repository Content Parser]
-            FeatureTracker[✅ Feature Implementation Tracker]
-            TaskCrossCheck[🔄 Task List Cross-Reference]
-            StatusUpdater[📋 Completion Status Updater]
-            
-            GitHubAgent --> RepoParser
-            RepoParser --> FeatureTracker
-            FeatureTracker --> TaskCrossCheck
-            TaskCrossCheck --> StatusUpdater
-        end
-        
-        subgraph "Data Flow"
-            JSONPlan[📋 Generated Project Plan<br/>JSON Format]
-            ResearchData[📄 Research Papers & Analysis]
-            GitHubStatus[✔️ Implementation Status Report]
-            
-            PlanTool --> JSONPlan
-            FileTool --> JSONPlan
-            LitSurvey --> ResearchData
-            StatusUpdater --> GitHubStatus
-        end
-        
-        subgraph "Integration Layer"
-            JSONPlan --> TaskCrossCheck
-            ResearchData --> PlannerAgent
-            GitHubStatus --> ProgressReporter
-        end
-        
-        ProgressReporter[📊 Progress Reporter<br/>Aggregated Updates]
-    end
-    
-    ProgressReporter --> L1
-    
-    subgraph "Level 1 Features"
-        L1 --> CareerDashboard[📈 Career Dashboard<br/>Overall Progress Tracking]
-        L1 --> MilestoneManager[🎯 Milestone Management<br/>Project Orchestration] 
-        L1 --> GoalTracker[🏆 Goal Achievement Tracker]
-    end
-    
-    CareerDashboard --> User
-    
-    classDef level1 fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000
-    classDef level2 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-    classDef agent fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
-    classDef tool fill:#e8f5e8,stroke:#2e7d32,stroke-width:1px,color:#000
-    classDef data fill:#fff8e1,stroke:#f57f17,stroke-width:1px,color:#000
-    
-    class L1 level1
-    class L2A,L2B,L2C,L2D level2
-    class PlannerAgent,ResearchAgent,GitHubAgent,ProgressReporter agent
-    class PlanTool,FileTool,WebSearch,PDFUpload,RepoParser,FeatureTracker,TaskCrossCheck,StatusUpdater tool
-    class JSONPlan,ResearchData,GitHubStatus,VectorStore,LitSurvey data
-```
 
-### Core Components
-
-#### 🧠 **Agent Node** - The Decision Maker
-- Processes user input and conversation context
-- Uses Google Gemini to understand intent
-- Decides which tools to invoke based on current state
-- Maintains awareness of project plan status
-
-#### 🔧 **Custom Tool Node** - The Action Executor
-- **Project Scoping Tool**: Converts ideas into structured plans
-- **Task Management Tool**: Adds/modifies tasks in existing plans  
-- **File Operations Tool**: Saves and loads project plans
-- **State Management**: Directly modifies the agent's persistent state
-
-#### 🔄 **Stateful Loop System**
-- Continuous conversation flow with persistent memory
-- Dynamic routing based on conversation context
-- Automatic state updates after each interaction
-- Graceful session termination on save operations
 
 ## 💻 Tech Stack
 
@@ -173,7 +113,7 @@ graph TB
 | **Dependency Management** | Poetry | Package and environment management |
 | **Agent Framework** | LangGraph | State-based agent orchestration |
 | **LLM Provider** | Google Gemini | Natural language processing |
-| **Data Validation** | Pydantic | Schema validation and serialization |
+| **Database** | MongoDB | Stores project details, sessions, contexts and similarity search |
 | **Environment Config** | python-dotenv | Environment variable management |
 
 ## 🚀 Getting Started
@@ -181,6 +121,8 @@ graph TB
 ### Prerequisites
 - Python 3.12 or higher
 - Poetry (for dependency management)
+- MongoURI
+- Github Token
 - Google AI API key
 
 ### Installation
@@ -188,7 +130,7 @@ graph TB
 1. **Clone the repository**
    ```bash
    git clone https://github.com/yourusername/careerforge.git
-   cd careerforge
+   cd agentic
    ```
 
 2. **Install dependencies**
@@ -248,42 +190,16 @@ Would you like me to add any additional features or modify existing tasks?
 🎉 Project planning session completed!
 ```
 
-## 📁 Project Structure
-
-```
-careerforge/
-├── src/
-│   ├── agents/
-│   │   └── generate_plan.py     # Core plan generation logic
-│   ├── schemas.py               # Pydantic data models
-│   └── main_agent.py           # Main agent orchestration
-├── pyproject.toml              # Poetry dependencies
-├── .env.example                # Environment variables template
-└── README.md                   # This file
-```
 
 ## 🔧 Configuration
 
 ### Environment Variables
 ```bash
 GEMINI_KEY=your_google_ai_api_key_here
+MONGO_URI=your_mongodb_uri_here
+GITHUB_TOKEN=your_github_token_here
 ```
 
-### Schema Customization
-Modify `src/schemas.py` to customize the project plan structure:
-
-```python
-class KanbanTask(BaseModel):
-    id: int = Field(..., description="Unique ID for the task")
-    title: str = Field(..., description="Task title")
-    description: str = Field(..., description="Task description")
-    status: Literal["To-Do"] = Field(default="To-Do")
-
-class ProjectPlan(BaseModel):
-    project_title: str = Field(..., description="Project title")
-    project_description: str = Field(..., description="Project summary")
-    tasks: List[KanbanTask] = Field(..., description="Project tasks")
-```
 
 ## 🎯 Use Cases
 
@@ -301,15 +217,11 @@ class ProjectPlan(BaseModel):
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
 - [LangGraph](https://langchain-ai.github.io/langgraph/) for the agent framework
 - [Google AI](https://ai.google.dev/) for the Gemini models
-- [Pydantic](https://pydantic.dev/) for data validation
 - The open-source community for inspiration and tools
 
 **Happy Planning! 🚀**
