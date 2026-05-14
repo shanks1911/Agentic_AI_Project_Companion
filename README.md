@@ -11,7 +11,7 @@ This is an advanced, conversational AI assistant designed to help users plan, ma
 
 ## 🧠 Multi-Agent Architecture
 
-CareerForge uses specialized AI agents working collaboratively:
+Specialized AI agents work collaboratively:
 
 ### 🎯 Orchestrator Agent
 - Coordinates the complete workflow
@@ -157,38 +157,6 @@ Start the interactive session:
 python -m src.main_agent
 ```
 
-#### Example Workflow
-
-```
-🤖 Hello! I'm your Interactive Project Manager. Let's start a new project.
-👤 You: I want to build a personal finance tracker app
-
-🤖 AI: I'll help you create a comprehensive plan for your personal finance tracker app!
---- 🛠️ Calling Project Scoping Tool ---
-🤖 Thinking and generating your project plan...
-
-⚙️ Tool Result: Successfully generated a plan for 'Personal Finance Tracker App' with 8 tasks.
-
-🤖 AI: Great! I've created a detailed project plan with the following tasks:
-- Setup Development Environment
-- Design Database Schema
-- Implement User Authentication
-- Create Transaction Management
-- Build Dashboard and Analytics
-- Add Budget Planning Features
-- Implement Data Export
-- Testing and Deployment
-
-Would you like me to add any additional features or modify existing tasks?
-
-👤 You: Add a mobile app version task
-🤖 AI: I'll add a mobile app development task to your plan.
-⚙️ Tool Result: Successfully added task 'Mobile App Development' to the plan.
-
-👤 You: Perfect! Save this as my_finance_app
-⚙️ Tool Result: ✅ Project plan successfully saved to my_finance_app.json! Session will now end.
-🎉 Project planning session completed!
-```
 
 
 ## 🔧 Configuration
